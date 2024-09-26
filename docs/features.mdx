@@ -1,0 +1,127 @@
+---
+sidebar_position: 3
+---
+
+import ReactPlayer from "react-player";
+
+# Features
+
+## Sign-up and Sign-in with Google Account
+
+<ReactPlayer playing={false} controls url="https://youtu.be/zjkVuBfUuwI" />
+
+## Settings
+
+- 다음과 같은 (반복되는) 한 사이클을 구성하는 값들을 설정할 수 있습니다 - pomo(doro) duration, short break and long break duration, number of pomos.
+  Pomodoro와 break 각각에 대해 자동 시작 설정을 할 수 있습니다.
+- Demo 데이터를 생성 그리고 지울 수 있고, 계정 삭제도 이 페이지에서 할 수 있습니다.
+- 새로운 카테고리를 만들고, 이름과 색상을 수정할 수 있습니다.
+
+<ReactPlayer playing={false} controls url={"https://youtu.be/DcW4KFaIp_g"} />
+
+## Timer
+
+### **Time Countdown and Pause**
+
+Pomodoro와 Break 세션 모두 카운트다운 중에 일시정지할 수 있으며, 일시정지한 시간도 카운트됩니다.
+
+Pomodoro<ReactPlayer playing={false} controls url={"https://youtu.be/NNqVZx9zpRI"} />
+
+Break<ReactPlayer playing={false} controls url={"https://youtu.be/4H3wQPCgWtA"} />
+
+### **Autostart**
+
+한 사이클 내의 첫 pomodoro session을 제외한 모든 세션들은 자동 시작될 수 있습니다. 즉, 한 사이클이 끝났을 때, 다음 사이클이 자동 시작되지는 않습니다.
+
+<ReactPlayer playing={false} controls url={"https://youtu.be/SIou406E2Kk"} />
+
+### **Notification and Click to Focus**
+
+<ReactPlayer playing={false} controls url={"https://youtu.be/5t8QwR4VwqM"} />
+
+### **Add and Subtract 5 minutes**
+
+세션 진행도중 5분단위로 유연하게 세션을 연장하거나 줄일 수 있습니다.
+
+<ReactPlayer playing={false} controls url={"https://youtu.be/IldF2Abr1q8"} />
+
+### **Categorized Sessions**
+
+- 원하는 카테고리를 이용해서 세션을 진행할 수 있습니다.
+- 세션 진행도중 카테고리의 이름이나 색상을 변경할 수도 있습니다.
+- 세션 진행 중간에 다른 카테고리로 변경할 수 있습니다.
+  - 실수로 잘못 선택해서 이미 진행된 세션 부분을 다른 새로운 카테고리로 인식해야 하는 경우.
+  - 단순히 다른 새로운 카테고리의 작업을 하고싶어서 이전까지 한 것들은 그대로 기록하고 새로운 카테고리로 전환하는 경우.
+
+<ReactPlayer playing={false} controls url={"https://youtu.be/lBuaJb0g8lg"} />
+
+### **실수로 브라우저를 종료하거나 컴퓨터가 종료된 경우**
+
+로그인 후 사용할 때
+
+<ReactPlayer playing={false} controls url={"https://youtu.be/z7NIPOiSuWE"} />
+로그인 하지 않고 사용할 때
+<ReactPlayer playing={false} controls url={"https://youtu.be/oGvpTwDorHY"} />
+
+## Feedback
+
+### Timeline
+
+#### **시각적 피드백** ([#19](https://github.com/Yonghwan-Song/pomodoro/issues/19#issue-1889540231), [#17](https://github.com/Yonghwan-Song/pomodoro/issues/17#issue-1880056222), [#16](https://github.com/Yonghwan-Song/pomodoro/issues/16#issue-1842505127))
+
+- **선홍색, 녹색, 노란색** 박스들이 각각 pomodoro, break, pause를 나타냅니다.
+- 마우스 **스크롤**을 이용하거나 마우스 좌측 버튼을 클릭 한 상태에서 **drag and relase**하는 방식으로 timeline을 좌우로 이동시킬 수 있습니다.
+- 각 박스 **바로 아래에 타임라인 중 짙은색 부분을 클릭**하면 그 박스에 해당하는 세션 혹은 pause의 시작과 끝, 그리고 걸린 시간을 확인할 수 있습니다.
+  <ReactPlayer playing={false} controls url={"https://youtu.be/5-qhNyGeFng"} />
+
+#### **반응형 디자인** ([#29](https://github.com/Yonghwan-Song/pomodoro/issues/29#issue-1994595288), [#34](https://github.com/Yonghwan-Song/pomodoro/issues/34#issue-2027875141))
+
+탭의 너비 변화에 따라 3단계로 시간 눈금의 크기가 조정됩니다. 그 효과로, 앱을 작은 화면으로 띄웠을 때 충분히 많은 시간대를 timeline에서 눈으로 확인할 수 있습니다.
+
+<ReactPlayer playing={false} controls url={"https://youtu.be/seRHzwvFnKI"} />
+
+### Statistics
+
+pomodoro session에 대한 통계를 제공합니다.
+
+#### **Modal대신 한 페이지에 배치**
+
+답답한 느낌이 덜 들도록 modal보다는 한 페이지 자체에서 통계를 확인할 수 있도록 했습니다.
+
+[기존에 제가 가끔씩 사용하던 앱](https://pomodor.app/) [^1]에서도 통계를 따로 한 페이지에 배치했지만 세션 진행 중에 다른 페이지로 이동이 불가능하게 설정되어 있었습니다. 이 부분이 답답해서 이 앱에서는 세션 진행 중에도 페이지간 이동이 가능하도록 구현하였습니다.
+
+Timer가 보이는 **`\timer` 페이지 이외의 page**에서도 타이머는 돌아갑니다.
+e.g) Statistics page에서 pomodoro session의 완료가 그래프에 즉각 반영되는 경우 그리고 Settings page에서 pomodoro session이 종료되는 경우.
+
+<ReactPlayer playing={false} controls url={"https://youtu.be/aWkJDobT-UU"} />
+
+#### **Demo Data**
+
+이 앱을 처음 사용하는 유저는 데모 데이터를 만들어서 통계 그래프가 어떻게 그려지는지 확인할 수 있습니다.
+
+<ReactPlayer
+  playing={false}
+  controls
+  url={"https://youtu.be/teklSJJZutc?si=5gpHsbYR_NKwGKTK"}
+/>
+
+#### **Total Graph**
+
+모든 카테고리를 포함한 통계를 나타냅니다. Stacked Graph로 대략적으로 어떤 카테고리에 시간을 많이 투자했는지 볼 수 있습니다.
+
+<ReactPlayer playing={false} controls url={"https://youtu.be/yY70Sjch3UA"} />
+
+#### **Category Graph**
+
+Total Graph는 Stacked Graph이므로 특정 카테고리의 추세를 직관적으로 판단하기는 어렵습니다.  
+그러므로 개별적으로 추세를 확인하고 싶은 카테고리를 클릭하면, 그것의 독립적인 추세를 확인할 수 있습니다.
+
+<ReactPlayer playing={false} controls url={"https://youtu.be/TH0eRA5hgnM"} />
+
+## Account Deletion
+
+<ReactPlayer playing={false} controls url={"https://youtu.be/RUCZMySv1BU"} />
+
+<br />
+<br />
+[^1]: Currently the app does not have the statistics feature anymore.
