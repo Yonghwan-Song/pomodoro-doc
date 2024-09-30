@@ -23,38 +23,36 @@ slug: /
 세션 진행 도중에 카테고리 바꾼 경우.
 ![timer-two-cate](./img/timer-two-cate.png)
 
-타임라인
+타임라인  
 ![timeline](./img/timeline.png)
 
 ### `/statistics`
 
 #### Total Graph and Category graph
 
-두번째 그래프에 `uncategorized`만 그려짐.
+두번째 그래프에 `uncategorized`만 그려짐.  
 ![same-week-1](./img/same-week-1.png)
 
-두번째 그래프에 `Documentation` 와 `Features & Debugging`.
+두번째 그래프에 `Documentation` 와 `Features & Debugging`.  
 ![same-week-2](./img/same-week-2.png)
 
-두번째 그래프에 `uncategorized` 와 `Job Search and Application`.
+두번째 그래프에 `uncategorized` 와 `Job Search and Application`.  
 ![same-week-3](./img/same-week-3.png)
 
 #### Two graphs show different week data
 
-첫번째 - `9.9 ~ 9.15`, 두번째 - `9.2 ~ 9.8`.
+첫번째 - `9.9 ~ 9.15`, 두번째 - `9.2 ~ 9.8`.  
 ![diff-week-data](./img/diff-week-data.png)
 
-첫번째 - `9.2 ~ 9.8`, 두번째 - `9.9 ~ 9.15`.
+첫번째 - `9.2 ~ 9.8`, 두번째 - `9.9 ~ 9.15`.  
 ![diff-week-data-2](./img/diff-week-data-2.png)
 
 #### Mouse hover over each graph
 
-![hover-over-first](./img/hover-over-first.png)
-
+![hover-over-first](./img/hover-over-first.png)  
 ![hover-over-second](./img/hover-over-second.png)
 
 ### `/settings`
 
-![settings](./img/settings.png)
-
+![settings](./img/settings.png)  
 ![small-width-in-settings](./img/small-width-in-settings.png)

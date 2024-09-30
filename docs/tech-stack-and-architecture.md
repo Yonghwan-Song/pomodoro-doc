@@ -30,7 +30,7 @@ sidebar_position: 2
 - [idb](https://www.npmjs.com/package/idb) v7.1.1 - for promise-based interaction with Indexed DB
 - [Date-fns](https://www.npmjs.com/package/date-fns) v2.29.3 -->
 
-### **Frontend**
+### Frontend
 
 #### Single Page Application (SPA) Libraries
 
@@ -53,7 +53,7 @@ sidebar_position: 2
 
 #### Styling & Theming
 
-- **React Inline Styles**
+- React Inline Styles
   - _Applies inline CSS styles directly within React components for dynamic styling._
 - [Styled Components](https://styled-components.com/) v5.3.5
   - _Enables writing CSS-in-JS, allowing for scoped and reusable component styles._
@@ -87,7 +87,7 @@ sidebar_position: 2
 - [MongoDB Atlas](https://www.mongodb.com/atlas/database)
 - [Mongoose](https://www.npmjs.com/package/mongoose) v8.3.4 -->
 
-### **Backend**
+### Backend
 
 #### Web Application Framework
 
@@ -112,7 +112,7 @@ sidebar_position: 2
 
 <br/>
 
-### **DevOps/Infrastructure**
+### DevOps/Infrastructure
 
 - SPA Hosting: [Vercel](https://vercel.com)
   - Continuous Deployment: Automated via Vercel GitHub integration
@@ -121,7 +121,7 @@ sidebar_position: 2
 
 <br/>
 
-### **Version Control**
+### Version Control
 
 - [Git](https://git-scm.com/)
   - _A distributed version control system for tracking changes in source code during software development._
