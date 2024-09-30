@@ -85,8 +85,12 @@ const config: Config = {
         // },
         // { to: "/blog", label: "Blog", position: "left" },
         {
+          href: "https://www.pomodoroaid.online",
+          label: "Live Web App",
+          position: "right",
+        },
+        {
           href: "https://github.com/Yonghwan-Song/pomodoro",
-          // label: "GitHub",
           label: "Source Code",
           position: "right",
         },
