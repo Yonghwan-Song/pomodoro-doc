@@ -1,11 +1,4 @@
----
-sidebar_position: 1
-slug: /
----
-
-# Overview
-
-[PDF](./asset/summary.pdf)
+# Pomodoro Timer
 
 ## 개념
 
@@ -47,7 +40,7 @@ slug: /
 
 ## 아키텍처
 
-![architecture](./img/architecture.png)
+[![architecture](https://github.com/Yonghwan-Song/pomodoro/assets/72689705/fc6c8cdf-9dc0-47a4-9b18-9d2ab1bd819a)](https://github.com/Yonghwan-Song/pomodoro/assets/72689705/fc6c8cdf-9dc0-47a4-9b18-9d2ab1bd819a)
 
 ## Page Screenshots
 
@@ -55,41 +48,41 @@ slug: /
 
 ### `/timer`
 
-![timer-one-cate](./img/timer-one-cate.png)
+[![timer-one-cate](../img/timer-one-cate.png)](../img/timer-one-cate.png)
 
 세션 진행 도중에 카테고리 바꾼 경우.
-![timer-two-cate](./img/timer-two-cate.png)
+[![timer-two-cate](../img/timer-two-cate.png)](../img/timer-two-cate.png)
 
 타임라인  
-![timeline](./img/timeline.png)
+[![timeline](../img/timeline.png)](../img/timeline.png)
 
 ### `/statistics`
 
 #### Total Graph and Category graph
 
 두번째 그래프에 `uncategorized`만 그려짐.  
-![same-week-1](./img/same-week-1.png)
+[![same-week-1](../img/same-week-1.png)](../img/same-week-1.png)
 
 두번째 그래프에 `Documentation` 와 `Features & Debugging`.  
-![same-week-2](./img/same-week-2.png)
+[![same-week-2](../img/same-week-2.png)](../img/same-week-2.png)
 
 두번째 그래프에 `uncategorized` 와 `Job Search and Application`.  
-![same-week-3](./img/same-week-3.png)
+[![same-week-3](../img/same-week-3.png)](../img/same-week-3.png)
 
 #### Two graphs show different week data
 
 첫번째 - `9.9 ~ 9.15`, 두번째 - `9.2 ~ 9.8`.  
-![diff-week-data](./img/diff-week-data.png)
+[![diff-week-data](../img/diff-week-data.png)](../img/diff-week-data.png)
 
 첫번째 - `9.2 ~ 9.8`, 두번째 - `9.9 ~ 9.15`.  
-![diff-week-data-2](./img/diff-week-data-2.png)
+[![diff-week-data-2](../img/diff-week-data-2.png)](../img/diff-week-data-2.png)
 
 #### Mouse hover over each graph
 
-![hover-over-first](./img/hover-over-first.png)  
-![hover-over-second](./img/hover-over-second.png)
+[![hover-over-first](../img/hover-over-first.png)](../img/hover-over-first.png)  
+[![hover-over-second](../img/hover-over-second.png)](../img/hover-over-second.png)
 
 ### `/settings`
 
-![settings](./img/settings.png)  
-![small-width-in-settings](./img/small-width-in-settings.png)
+[![settings](../img/settings.png)](../img/settings.png)  
+[![small-width-in-settings](../img/small-width-in-settings.png)](../img/small-width-in-settings.png)
