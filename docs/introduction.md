@@ -5,8 +5,6 @@ slug: /
 
 # Overview
 
-[PDF](./asset/summary.pdf)
-
 ## 개념
 
 [pomodoro technique](https://ko.wikipedia.org/wiki/%ED%8F%AC%EB%AA%A8%EB%8F%84%EB%A1%9C_%EA%B8%B0%EB%B2%95)을 기반으로 하는 공부 & 작업 시간 측정 App입니다. 한 사이클의 작업 시간을 여러 개의 작업 세션들과 그에 뒤따르는 짧은 휴식 그리고 다음 사이클 시작 전의 마지막 긴 휴식으로 나누어 높은 집중력을 유지하는 데 도움을 줍니다.
@@ -22,11 +20,15 @@ slug: /
 
 ### 프론트엔드
 
-- React(with TypeScript), React Router DOM, Axios, Firebase Authentication, Styled Components
+- React, React Router DOM, Axios, Firebase Authentication
+- React Inline Style, Styled Components
+- TypeScript, Rechart, idb, date-fns
 
 ### 백엔드
 
-- NestJS, Express (구 서버), Firebase Admin, MongoDB Atlas, Mongoose
+- NestJS, Express
+- Firebase Admin
+- MongoDB Atlas, Mongoose, @nest/mongoose
 
 ### 호스팅
 
@@ -51,7 +53,7 @@ slug: /
 
 ## Page Screenshots
 
-아래는 각 페이지의 간단한 스크린샷이며, 구체적인 기능 설명은 다음 섹션인 'Features'에서 다루겠습니다.
+아래는 각 페이지의 간단한 스크린샷입니다. 구체적인 기능 설명은 'Features' 사이드바 항목에서 다루겠습니다.
 
 ### `/timer`
 

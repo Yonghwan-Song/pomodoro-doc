@@ -70,6 +70,11 @@ const config: Config = {
         // See the docs of zooming for all available options: https://github.com/francoischalifour/medium-zoom#usage
       },
     },
+    docs: {
+      sidebar: {
+        hideable: true,
+      },
+    },
     navbar: {
       title: "Pomodoro",
       logo: {
@@ -77,13 +82,6 @@ const config: Config = {
         src: "img/logo.svg",
       },
       items: [
-        // {
-        //   type: "docSidebar",
-        //   sidebarId: "tutorialSidebar",
-        //   position: "left",
-        //   label: "Documentation",
-        // },
-        // { to: "/blog", label: "Blog", position: "left" },
         {
           href: "https://www.pomodoroaid.online",
           label: "Live Web App",
