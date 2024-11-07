@@ -54,10 +54,11 @@ slug: /
 - [자동 시작](./features.mdx#autostart)
 - [Statistics 페이지에서 주간 통계 제공](./features.mdx#statistics)
 - [세션을 구분하기 위한 카테고리 생성](./features.mdx#settings)
-- [카테고리별 통계](./features.mdx#category-graph)
+- [한 세션에서 여러 카테고리의 작업 가능](./features.mdx#categorized-sessions)
+- [카테고리별 통계](./features.mdx#total-graph)
 - [일시 정지 및 정지한 시간 측정](./features.mdx#time-countdown-and-pause)
   - 한 세션에서 한 일시 정지들을 타임라인에 그려서 피드백 제공
-- [세션 진행 도중 `/timer`, `/statistics`, 그리고 `/settings` 페이지 간 자유롭게 이동 가능](./features.mdx#한-세션이-진행-중일-때pomo-or-break-관계없이-다른-페이지들을-자유롭게-방문할-수-있도록-하는-것)
+- [세션 진행 도중 `/timer`, `/statistics`, 그리고 `/settings` 페이지 간 자유롭게 이동 가능](./problem-solving.mdx#한-세션이-진행-중일-때pomo-or-break-관계없이-다른-페이지들을-자유롭게-방문할-수-있도록-하는-것)
 
 ## 아키텍처
 
