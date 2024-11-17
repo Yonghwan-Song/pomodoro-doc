@@ -5,12 +5,14 @@ slug: /
 
 # Overview
 
-## 개념
+## 소개
 
 [pomodoro technique](https://ko.wikipedia.org/wiki/%ED%8F%AC%EB%AA%A8%EB%8F%84%EB%A1%9C_%EA%B8%B0%EB%B2%95)을 기반으로 하는 공부 & 작업 시간 측정 App입니다. 한 사이클의 작업 시간을 여러 개의 작업 세션들과 그에 뒤따르는 짧은 휴식 그리고 다음 사이클 시작 전의 마지막 긴 휴식으로 나누어 높은 집중력을 유지하는 데 도움을 줍니다.
 (작업 시간을 pomodoro 또는 pomo라고 부릅니다).
 
 `One cycle == (pomo + short break) * number of pomos + long break`
+
+그리고 작업 시간에 대한 통계를 제공하여 사용자가 현재 상태를 파악하는데 도움을 주고 동기부여가 될 수 있도록 도와줍니다.
 
 ## 만들게 된 계기
 
@@ -78,6 +80,9 @@ slug: /
 - [idb](https://www.npmjs.com/package/idb)
   - for a promise-based interface for interacting with Indexed DB
 - date-fns
+- JavaScript Design Patterns
+  - Pub/Sub (Publisher-Subscriber Pattern)
+    - [example](https://pomodoro-doc.vercel.app/problem-solving#%ED%95%B4%EA%B2%B0-%EB%B0%A9%EC%8B%9D-1)
 
 ### 백엔드
 

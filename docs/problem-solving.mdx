@@ -2,6 +2,8 @@
 sidebar_position: 4
 ---
 
+import { Highlight } from "../src/components/Highlight";
+
 # Problem Solving
 
 ## **한 세션이 진행 중일 때(pomo or break 관계없이), 다른 페이지들을 자유롭게 방문할 수 있도록 하는 것**
@@ -84,7 +86,7 @@ index.tsx파일에 다음처럼 [countDown 함수](https://github.com/Yonghwan-S
 
 1. Service worker script를 이용해서, indexed db에 저장된 `timersStates`를 update합니다.
    이렇게 되면 `/timer`로 돌아왔을 때 indexedDB에서 가져오는 상태값은 세션 종료를 반영한 것이므로 이를 이용해서 바로 다음 세션 UI를 render할 수 있습니다.
-2. `/statistics`에서 pomo session이 종료될 때, 그 값을 통계 그래프에 곧바로 반영하기위해 **pubsub pattern**[^3]을 사용 했습니다.
+2. `/statistics`에서 pomo session이 종료될 때, 그 값을 통계 그래프에 곧바로 반영하기 위해 <Highlight color="#25c2a0">**Pub/Sub 패턴**[^3]</Highlight>을 사용했습니다.
 
 #### 어려웠던 점 - service worker가 작동하는 방식이 저의 예상과 달랐습니다.
 
@@ -110,7 +112,7 @@ index.tsx파일에 다음처럼 [countDown 함수](https://github.com/Yonghwan-S
 
 [^1]: The component name has now been renamed to `TimerController`.
 [^2]: `type TimersStatesType = TimerStateType & PatternTimerStatesType` - [Github source code link](https://github.com/Yonghwan-Song/pomodoro/blob/bb5c1d3b0623ff6d507d14494f7d678837d16581/client/src/types/clientStatesType.ts#L1-L15)
-[^3]: [Statistics.tsx](https://github.com/Yonghwan-Song/pomodoro/blob/bb5c1d3b0623ff6d507d14494f7d678837d16581/client/src/Pages/Statistics/Statistics.tsx#L266-L306), [pubsub.ts](https://github.com/Yonghwan-Song/pomodoro/blob/bb5c1d3b0623ff6d507d14494f7d678837d16581/client/src/pubsub.ts#L10-L43)
+[^3]: [subscribe](https://github.com/Yonghwan-Song/pomodoro/blob/main/client/src/Pages/Statistics/Statistics.tsx#L632),[publish](https://github.com/Yonghwan-Song/pomodoro/blob/main/client/src/index.tsx#L159), [pubsub.ts](https://github.com/Yonghwan-Song/pomodoro/blob/main/client/src/pubsub.ts)
 [^4]: [index.tsx](https://github.com/Yonghwan-Song/pomodoro/blob/bb5c1d3b0623ff6d507d14494f7d678837d16581/client/src/index.tsx#L678), [sw.js](https://github.com/Yonghwan-Song/pomodoro/blob/bb5c1d3b0623ff6d507d14494f7d678837d16581/client/src/sw.js#L82-L84)
 [^5]: `function useState<S>(initialState: S | (() => S)): [S, Dispatch<SetStateAction<S>>]`
 [^6]: https://w3c.github.io/ServiceWorker/#service-worker-lifetime

@@ -1,0 +1,7 @@
+# .prettierignore
+
+# Ignore all .mdx files
+*.mdx
+
+# Or ignore specific folders/files
+docs/**/*.mdx
