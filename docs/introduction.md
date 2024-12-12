@@ -61,6 +61,8 @@ slug: /
   - `useMemo`, `useCallback`, `useContext`, etc.
 - React Router DOM
   - Nested Routing
+- State management
+  - Zustand
 
 #### HTTP Requests & Authentication
 
