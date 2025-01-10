@@ -107,6 +107,59 @@ index.tsx파일에 다음처럼 [countDown 함수](https://github.com/Yonghwan-S
 [원본 링크](https://github.com/Yonghwan-Song/pomodoro/assets/72689705/c146532e-f4c5-45c5-a16f-c74333aeb3f3)
 ![스탯으로 이동후 세션 종료](./img/prob-solving-B-seq.png)
 
+## **인터넷 연결이 끊길 때에도 핵심 기능 사용할 수 있게 하기**
+
+### 문제 상황 및 구현하게 된 계기 - 인터넷이 끊긴 동안 사용한 결과는 서버에 저장되지 않는다
+평소에 대학교 도서관에서 작업하는데, 시험기간에 사람이 많이 몰리는 시간에는 인터넷이 간헐적으로 끊겼습니다. 이때 앱을 계속 사용하더라도 서버에 데이터가 보내지지 않기 때문에 나중에 인터넷이 연결된 후 다시 사용할 때 문제가 있었습니다. 예를 들면, 인터넷이 끊긴 상태에서 타이머가 종료되면 그 집중한 시간은 기록되지 않았습니다. 또는 어떤 집중 시간 진행 도중에 인터넷이 끊기고 카테고리를 변경하는 경우 이것은 반영되지 않습니다. 이런 식으로 인터넷이 몇 번씩 끊겼다가 연결되었다가 하면 앱에 대한 사용자 경험 안정성이 근본적으로 저하되었습니다.
+
+### 해결 방식 - request를 보관 후 다시 보내기
+
+- `errController` object를 정의해 이곳에 request를 보관 후 인터넷이 다시 연결되면 서버에 보냈습니다.
+
+- 사용자가 로그아웃하거나 브라우저 탭을 닫은 후 나중에 인터넷이 연결되는 경우
+
+  - `errController`에 있는 request를 indexed db에 저장
+
+  - 앱을 열거나 로그인하면, 그 사용자의 request들을 가져와서 다시 서버로 보냅니다.
+
+#### 데이터 합치기
+
+- patch request는 resource를 변경하는 것이므로 하나로 통합할 수 있습니다.
+
+  - 예를 들면, `/categories` 에대한 patch request는 `Categories` collection에 있는 한 카테고리 object를 수정하는 것이고,
+  - 다시 말하면 그것의 property를 수정하는 것입니다.
+  - *같은 object를 수정하는 request들은 하나로 통합해서 한번 보냅니다.*
+
+  - 여러 개의 category object를 수정하게 되는 경우를 위해 batch URL을 정의
+
+#### 어려웠던 점
+
+category object를 식별하는 방식이 name과 userEmail의 조합의 유일성을 이용하는 것인데, 
+
+이름을 바꾸는 patch request때문에 이것을 이용할 수 없었습니다.
+
+그래서 F.E 한정으로 사용하는 _uuid를 batch request의 경우에 한해서 식별자로 사용했습니다.
+
+- 흐름
+  - interceptor에서 `/categories`로 보내지는 patch는 interceptor에서 바로 `errController`에 등록하지 않고 error를 throw
+  - axios patch를 호출한 함수에서 그 error를 catch한 후 
+  - _uuid를 넣어서 `errController`에 등록.
+
+#### Service Worker에서 request 보내기
+
+- axios대신 fetch API를 이용하므로 fetch 호출을 try catch block에 넣어서 error를 잡아냅니다.
+
+- Error가 TypError이면 `BroadcastChannel` API를 이용해서 main thread에 데이터를 보냅니다.
+- event handler가 그 데이터를 받아서 `errController`에 저장합니다.
+
+
+
+
+
+
+
+
+
 <br />
 <br />
 
