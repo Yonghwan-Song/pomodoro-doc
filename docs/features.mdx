@@ -4,10 +4,11 @@ sidebar_position: 2
 
 import ResponsivePlayer from "../src/components/ResponsivePlayer/ResponsivePlayer";
 import Collapse from "../src/components/Collapse"
+import { Highlight } from "../src/components/Highlight";
 
 # Features
 
-- 초록색 글자들은 Youtube video나 github issue링크입니다.  
+<Highlight>**초록색 글자는 YouTube 동영상이나 GitHub 이슈 링크입니다.**</Highlight> 
 
 {/* ## sign-up and sign-in with google account */}
 
@@ -128,6 +129,24 @@ Total Graph는 Stacked Graph이므로 특정 카테고리의 추세를 직관적
   - Weekly trend그래프에 refernce라인과 tooltip에 달성률 및 메시지
 
 <br />
+
+## [Network Disconnection Handling](https://youtu.be/C-6v-Gnd-l0)
+
+인터넷이 간헐적으로 끊기는 환경에 있을 때, 다음과 같은 기능들을 계속 사용할 수 있습니다.
+
+- 모든 POST/PATCH request와 관련된 기능들
+- 연결이 끊긴 후 
+  - current category 변경
+  - 카테고리의 이름과 색상 변경
+  - 새로운 세션 시작 및 종류
+  - 진행 중이던 세션 종료
+  - pomodoro setting 변경
+  - goal setting 변경
+- 연결이 끊긴 후 위와 같은 기능들을 이용해서 웹사이트를 이용하다가
+  - 로그아웃하거나 브라우저를 종료해도
+  - 나중에 인터넷이 연결된 후 로그인하거나 웹사이트를 다시 열어서 사용해도
+  - 기존 데이터들의 누락 없이 연속적으로 사용할 수 있습니다.
+
 
 ## [Sign-up/in with Google Accounts](https://youtu.be/X1ZtEBbwSik)
 
