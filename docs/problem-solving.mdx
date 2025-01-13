@@ -156,8 +156,67 @@ category object를 식별하는 방식이 name과 userEmail의 조합의 유일�
 
 
 
+# Horizontal Timeline 만들기
+
+## 문제 상황 및 구현하게 된 계기
+
+집중과 휴식 세션들을 어떻게 진행했는지 직관적인 feedback이 필요했고, 이를 위해 timeline을 만들기로 했습니다. 제 앱의 use case에 맞는 적절한 horizontal timeline UI를 제공하는 라이브러리를 찾기 어려웠고 이 기회에 CSS를 연습해보자는 생각으로 직접 구현하게 되었습니다.
 
 
+
+## Design and Implementation
+
+- 1분을 나타내는 px을 정해서 Timeline component의 width를 24시간만큼의 크기로 설정
+- 오른쪽으로 갈수록 시간이 흘러간다고 가정하고 Timeline의 가장 왼쪽 끝을 하루의 시작인 12:00 am으로 정함
+- 완료된 세션은 타임라인 가장 왼쪽 끝으로부터 얼마나 떨어트려 놓을지 계산하여 적절한 위치를 잡음
+  - absolute position과 left CSS property를 이용
+- 타임라인을 좌우로 움직이기 위해 마우스 스크롤과 드래그에 대해 Timeline component의 left 값을 변화시킴
+  - session들은 모두 Timeline에 대해 absolutely positioned 되었기 때문에 그 위에서 함께 움직임
+
+### 어려웠던 점들
+
+#### [윈도우 사이즈 변화에 responsive하게 반응](https://github.com/Yonghwan-Song/pomodoro/issues/19)
+
+- 아래 그림처럼, visual viewport의 넓이가 x보다 커지면, 빨간색 부분처럼 빈 부분이 생김
+- window resize event handler에서 visual viewport width가 x보다 커지면 timeline의 right CSS property를 0으로 설정했습니다.
+![timeline-design](assets/timeline-design.png)
+
+Before
+<br/>
+![before](https://private-user-images.githubusercontent.com/72689705/266896424-18eecf44-b939-4e08-bfc8-aeba1c7b1d72.gif?jwt=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJnaXRodWIuY29tIiwiYXVkIjoicmF3LmdpdGh1YnVzZXJjb250ZW50LmNvbSIsImtleSI6ImtleTUiLCJleHAiOjE3MzY3NTM2MTIsIm5iZiI6MTczNjc1MzMxMiwicGF0aCI6Ii83MjY4OTcwNS8yNjY4OTY0MjQtMThlZWNmNDQtYjkzOS00ZTA4LWJmYzgtYWViYTFjN2IxZDcyLmdpZj9YLUFtei1BbGdvcml0aG09QVdTNC1ITUFDLVNIQTI1NiZYLUFtei1DcmVkZW50aWFsPUFLSUFWQ09EWUxTQTUzUFFLNFpBJTJGMjAyNTAxMTMlMkZ1cy1lYXN0LTElMkZzMyUyRmF3czRfcmVxdWVzdCZYLUFtei1EYXRlPTIwMjUwMTEzVDA3MjgzMlomWC1BbXotRXhwaXJlcz0zMDAmWC1BbXotU2lnbmF0dXJlPWEzY2FkNzM0NDVhYjU1ZjE1ZDkxNTQ2NmQzNWQwYjE5Mjg5MGZjMDliYTY0MDVhN2YzN2M1NTBmZmQ2YmNiODEmWC1BbXotU2lnbmVkSGVhZGVycz1ob3N0In0.apVqg8imrwM-rX_n3DszKqReEz8KsY16zsTr3Uh6jP4)
+<br />
+After
+<br />
+![after](https://private-user-images.githubusercontent.com/72689705/267545809-592fe3cb-4298-4fec-8c56-4b7938657a60.gif?jwt=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJnaXRodWIuY29tIiwiYXVkIjoicmF3LmdpdGh1YnVzZXJjb250ZW50LmNvbSIsImtleSI6ImtleTUiLCJleHAiOjE3MzY3NTM2MTIsIm5iZiI6MTczNjc1MzMxMiwicGF0aCI6Ii83MjY4OTcwNS8yNjc1NDU4MDktNTkyZmUzY2ItNDI5OC00ZmVjLThjNTYtNGI3OTM4NjU3YTYwLmdpZj9YLUFtei1BbGdvcml0aG09QVdTNC1ITUFDLVNIQTI1NiZYLUFtei1DcmVkZW50aWFsPUFLSUFWQ09EWUxTQTUzUFFLNFpBJTJGMjAyNTAxMTMlMkZ1cy1lYXN0LTElMkZzMyUyRmF3czRfcmVxdWVzdCZYLUFtei1EYXRlPTIwMjUwMTEzVDA3MjgzMlomWC1BbXotRXhwaXJlcz0zMDAmWC1BbXotU2lnbmF0dXJlPWZlZmFmOTRiMDgxNzIwMmRmOWUwMWQ5N2IyZDYyZTc4YmRjZjdhMzY2OTNmYzdlOTliOTQ0MjEzNjM1NDhhMDkmWC1BbXotU2lnbmVkSGVhZGVycz1ob3N0In0.RikEdrcHJnaSajKIMDcwVMAXJmcrXKVCr6GAOWZIWpA)
+
+#### [Responsive관련 css가 작동하지 않아서 Web API를 이용](https://github.com/Yonghwan-Song/pomodoro/issues/29#issue-1994595288)
+
+- media query를 사용하기 위해 inline style을 이용한 Timeline component를 styled component로 바꿨습니다.
+- 그런데 기존의 drag와 wheel event handler들이 ref를 이용해 Timeline element의 style object에 직접 접근하는데, 관련 코드들이 Styled Component로 바꿨을 때 잘 작동하지 않았습니다. 
+- 디버깅하기에는 너무 복잡해 보여서 기존의 inline 스타일을 유지하면서 CSS media query 없이 responsive design을 적용할 방법을 찾아봤습니다.
+- 다행히도 MediaQueryList Web APIS가 존재해서 그것들을 사용했습니다.
+  - 원하는 range에 해당하는 MediaQueryList object 정의
+  - 각 list object에 change event listener를 정의하여 responsiveness 적용
+
+<br />
+Before
+<br/>
+![before](https://github-production-user-asset-6210df.s3.amazonaws.com/72689705/289052108-44a93019-9ae9-4686-9655-d81aa16d581e.gif?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=AKIAVCODYLSA53PQK4ZA%2F20250113%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20250113T073618Z&X-Amz-Expires=300&X-Amz-Signature=5692a8d8c9b602c39806bedfc7ef818f87415d7884b37b8d747aacab23e03f94&X-Amz-SignedHeaders=host)
+<br />
+After
+<br />
+![after](https://github.com/Yonghwan-Song/pomodoro/assets/72689705/8640f5e8-3024-4ff0-9535-ea9413f94e54)
+
+{/* #### Elastic scroll에 의한 bouncing effect 제외시키기
+
+현상 및 원인
+
+- Document를 위로 움직이는 스크롤을 하면 타임라인이 우측으로 움직이는 동시에 위아래로 튕기는 효과가 나타났습니다.
+- 이것은 edge 브라우저에서 `elastic scroll`이 default 값으로 설정되어 있기 때문이었습니다.
+
+해결 방식
+
+-  */}
 
 
 <br />
