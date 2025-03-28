@@ -5,17 +5,18 @@ slug: /
 
 # Overview
 
-기획부터 프론트엔드와 백엔드 개발까지 직접 진행한 개인 프로젝트입니다.
+<!--이거 어떤 회사 공고에서 자기가 만든건지 뭐 기여도같은거 명시하라고 해서 적었던 것임. -->
+<!-- 기획부터 프론트엔드와 백엔드 개발까지 직접 진행한 개인 프로젝트입니다. -->
 
 ## 소개
 
 - [Pomodoro technique](https://ko.wikipedia.org/wiki/%ED%8F%AC%EB%AA%A8%EB%8F%84%EB%A1%9C_%EA%B8%B0%EB%B2%95)을 기반으로 하는 공부 & 작업 시간 측정 App입니다.
-- 한 사이클의 작업 시간을 여러 개의 작업 세션들과 그에 뒤따르는 짧은 휴식 그리고 다음 사이클 시작 전의 마지막 긴 휴식으로 나누어 높은 집중력을 유지하는 데 도움을 줍니다.
+- 한 사이클의 작업 시간을 여러 개의 작업 세션들과 이어지는 짧은 휴식 그리고 마지막 긴 휴식으로 나누어 높은 집중력을 유지하는 데 도움을 줍니다.
   (작업 시간을 pomodoro 또는 pomo라고 부릅니다).
 
   - `One cycle == (pomo + short break) * number of pomos + long break`
 
-- 작업 시간에 대한 통계를 제공하여 사용자가 현재 상태를 파악하는데 도움을 주고 동기부여가 될 수 있도록 도와줍니다.
+- 작업 시간에 대한 통계를 제공하여 사용자의 생산성을 파악하는데 도움을 주고 다양한 Feedback기능을 통해 동기부여가 될 수 있도록 도와줍니다.
 
 ## 만들게 된 계기
 
@@ -26,22 +27,68 @@ slug: /
 
 ### 프론트엔드
 
-- React (with TypeScript), React Router DOM, Axios, Zustand, Firebase Authentication
-- React Inline Style, Styled Components
-- testing-library
-  - jest-dom
-  - react
-  - user-event
-- ETC
-  - Rechart, [idb](https://github.com/jakearchibald/idb), date-fns, [rollup](https://rollupjs.org) (for bundling the service worker script)
-- Vercel
+#### HTML, CSS, JavaScript and WEB APIs
+
+- CSS
+  - [Positioning](https://developer.mozilla.org/en-US/docs/Learn/CSS/CSS_layout/Positioning), [Coordinate systems](https://developer.mozilla.org/en-US/docs/Web/CSS/CSSOM_view/Coordinate_systems)
+    - [적용한 기능 (Timeline)](https://pomodoro-doc.vercel.app/features#%EC%8B%9C%EA%B0%81%EC%A0%81-%ED%94%BC%EB%93%9C%EB%B0%B1-19-17-16)
+    - [구현 관련 어려웠던 점](https://pomodoro-doc.vercel.app/problem-solving#horizontal-timeline-%EB%A7%8C%EB%93%A4%EA%B8%B0)
+- WEB APIs
+  - [matchMedia](https://developer.mozilla.org/en-US/docs/Web/API/Window/matchMedia), [MediaQueryList](https://developer.mozilla.org/en-US/docs/Web/API/MediaQueryList)
+    - [example](https://pomodoro-doc.vercel.app/features#%EB%B0%98%EC%9D%91%ED%98%95-%EB%94%94%EC%9E%90%EC%9D%B8-29-34)
+    - [at-problem-solving](https://pomodoro-doc.vercel.app/problem-solving#responsive%EA%B4%80%EB%A0%A8-css%EA%B0%80-%EC%9E%91%EB%8F%99%ED%95%98%EC%A7%80-%EC%95%8A%EC%95%84%EC%84%9C-web-api%EB%A5%BC-%EC%9D%B4%EC%9A%A9)
+
+#### TypeScript
+
+- [Index Signatures](https://www.typescriptlang.org/docs/handbook/2/objects.html#index-signatures)
+- [Generic Types](https://www.typescriptlang.org/docs/handbook/2/generics.html#generic-types), [Conditional Types](https://www.typescriptlang.org/docs/handbook/2/conditional-types.html)
+  - [example](https://github.com/Yonghwan-Song/pomodoro/blob/main/client/src/Custom-Hooks/useFetch.tsx#L43)
+
+<!-- #### SPA Related
+
+- React
+  - useMemo, useCallback, useContext, and etc
+- React Router DOM - Nested Routing -->
+
+#### SPA(Single Page Application) Related
+
+- React
+  - `useMemo`, `useCallback`, `useContext`, etc.
+- React Router DOM
+  - Nested Routing
+
+#### HTTP Requests & Authentication
+
+- Axios
+  - [axios instance](https://axios-http.com/docs/instance), [interceptors](https://axios-http.com/docs/interceptors)
+    - [example](https://github.com/Yonghwan-Song/pomodoro/tree/main/client/src/axios-and-error-handling)
+- [Firebase Authentication](https://firebase.google.com/docs/auth/web/start)
+
+#### Styling
+
+- Styled Components, React Inline Style
+
+#### Etc
+
+- [Recharts](https://recharts.org/)
+  - [example](https://github.com/Yonghwan-Song/pomodoro/tree/main/client/src/Pages/Statistics/Graph-Related)
+- [idb](https://www.npmjs.com/package/idb)
+  - for a promise-based interface for interacting with Indexed DB
+- date-fns
+- JavaScript Design Patterns
+  - Pub/Sub (Publisher-Subscriber Pattern)
+    - [example](https://pomodoro-doc.vercel.app/problem-solving#%ED%95%B4%EA%B2%B0-%EB%B0%A9%EC%8B%9D-1)
 
 ### 백엔드
 
-- NestJS
-- Firebase Admin
+- NestJS, Express
+- [Firebase Admin](https://www.npmjs.com/package/firebase-admin)
 - MongoDB Atlas, Mongoose, @nest/mongoose
-- [Render.com](https://render.com)
+
+### 호스팅
+
+- Vercel - React app
+- [Render.com](https://render.com) - API server
 
 ## 기능 요약
 
@@ -112,10 +159,31 @@ Daily goals
 ![daily-goals](./img/daily-goals.png)
 
 Weekly goals
-![weekly-goal](./img/weekly-goal.png)
+![weekly-goal](./img/weekly-goal-svg.svg)
 
 ### `/settings`
 
-![settings](./img/settings-with-goal.png)  
-![narrow-settings-1](./img/narrow-settings-1.png)
-![narrow-settings-2](./img/narrow-settings-2.png)
+![settings-wide-1](./img/settings/settings-wide-1.png)  
+![settings-wide-2](./img/settings/settings-wide-2.png)  
+![narrow-settings-1](./img/settings/settings-narrow-1.png)
+![narrow-settings-2](./img/settings/settings-narrow-2.png)
+
+<!-- Tech Stack Summarized version that is shitty.
+### 프론트엔드
+
+- React (with TypeScript), React Router DOM, Axios, Zustand, Firebase Authentication
+- React Inline Style, Styled Components
+- testing-library
+  - jest-dom
+  - react
+  - user-event
+- ETC
+  - Rechart, [idb](https://github.com/jakearchibald/idb), date-fns, [rollup](https://rollupjs.org) (for bundling the service worker script)
+- Vercel
+
+### 백엔드
+
+- NestJS
+- Firebase Admin
+- MongoDB Atlas, Mongoose, @nest/mongoose
+- [Render.com](https://render.com) -->
