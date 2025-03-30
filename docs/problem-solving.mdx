@@ -185,12 +185,99 @@ After
 
 ##### [Responsive관련 css가 작동하지 않아서 Web API를 이용](https://github.com/Yonghwan-Song/pomodoro/issues/29#issue-1994595288)
 
-- media query를 사용하기 위해 inline style을 이용한 Timeline component를 styled component로 바꿨습니다.
-- 그런데 기존의 drag와 wheel event handler들이 ref를 이용해 Timeline element의 style object에 직접 접근하는데, 관련 코드들이 Styled Component로 바꿨을 때 잘 작동하지 않았습니다. 
-- 디버깅하기에는 너무 복잡해 보여서 기존의 inline 스타일을 유지하면서 CSS media query 없이 responsive design을 적용할 방법을 찾아봤습니다.
-- 다행히도 MediaQueryList Web APIS가 존재해서 그것들을 사용했습니다.
-  - 원하는 range에 해당하는 MediaQueryList object 정의
-  - 각 list object에 change event listener를 정의하여 responsiveness 적용
+- 사용하게 된 계기
+  - media query를 사용하기 위해 inline style을 이용한 Timeline component를 styled component로 바꿨습니다.
+  - 그런데 기존의 drag와 wheel event handler들이 ref를 이용해 Timeline element의 style object에 직접 접근하는데, 관련 코드들이 Styled Component로 바꿨을 때 잘 작동하지 않았습니다. 
+  - 디버깅하기에는 너무 복잡해 보여서 기존의 inline 스타일을 유지하면서 CSS media query 없이 responsive design을 적용할 방법을 찾아봤습니다.
+
+- 전반적인 원리
+  - window object의 matchMedia() method는 mediaQuery을 argument로 받고, MediaQueryList object를 반환합니다.
+  - 이때, window는 현재 앱이 놓여있는 tab에 관한 것이므로, MediaQueryList이 갖게 되는 정보는 **이 tab이 mediaQuery을 만족하는지 등에 관한 것입니다.**
+  - 그 정보와 MediaQueryList object가 제공하는 몇 가지 기능들을 이용하면, 앱을 여러 media에 대해 responsive하게 만들 수 있습니다.
+
+- 바꿔야 하는 것: 몇 pixel을 가지고 24시간을 나타낼 지.
+  - 예를 들면, 작은 device일수록, 작은 pixel을 이용해 24시간을 나타냅니다.
+  - 이것이 결정되면 비례식으로 1초, 1분, 1시간이 몇 pixel에 해당하는지 계산하여, Scale component를 적절히 render할 수 있습니다.
+
+```tsx
+const msToPx = useRef<number>(PIXEL.PER_SEC.IN_FHD / 1000);
+const fullWidthOfTimeline = useRef<number>(PIXEL.PER_HR.IN_FHD * 24);
+```
+```ts
+export const PIXEL = {
+  PER_SEC: {
+    IN_MOBILE: 16 / 300,
+    IN_TABLET: 16 / 225,
+    IN_FHD: 8 / 60,
+    IN_QHD: 16 / 90,
+    IN_UHD: 4 / 15,
+  },
+  PER_MIN: {
+    IN_MOBILE: 16 / 5,
+    IN_TABLET: 64 / 15,
+    IN_FHD: 8,
+    IN_QHD: 32 / 3,
+    IN_UHD: 16,
+  },
+  PER_HR: {
+    IN_MOBILE: 192, // 576 <-> 3h
+    IN_TABLET: 256, // 768 <-> 3h
+    IN_FHD: 480, // 1920 <-> 4h
+    IN_QHD: 640, // 2560 <-> 4h
+    IN_UHD: 960, // 3840 <-> 4h
+  },
+};
+```
+
+- 처음 마운트 및 update되어 re-render되는 경우
+  - 예를 들면, mobile, tablet, fhd를 target으로 하는 range에 대한 MediaQueryList를 각각 만들면,
+  - 각 object의 matches property는 현재 tab이 자신들을 만족하고 있는지를 boolean 값으로 나타냅니다.
+  - 따라서 component가 render되면 이 property들을 확인해서 어떤 pixel값을 적용해야 할지 결정합니다.
+
+```tsx
+if (mobileRange.matches) {
+  msToPx.current = PIXEL.PER_SEC.IN_MOBILE / 1000;
+  fullWidthOfTimeline.current = PIXEL.PER_HR.IN_MOBILE * 24;
+} else if (tabletRange.matches) {
+  msToPx.current = PIXEL.PER_SEC.IN_TABLET / 1000;
+  fullWidthOfTimeline.current = PIXEL.PER_HR.IN_TABLET * 24;
+} else if (fhdRange.matches) {
+  msToPx.current = PIXEL.PER_SEC.IN_FHD / 1000;
+  fullWidthOfTimeline.current = PIXEL.PER_HR.IN_FHD * 24;
+} else if (qhdRange.matches) {
+  msToPx.current = PIXEL.PER_SEC.IN_QHD / 1000;
+  fullWidthOfTimeline.current = PIXEL.PER_HR.IN_QHD * 24;
+} else if (uhdRange.matches) {
+  msToPx.current = PIXEL.PER_SEC.IN_UHD / 1000;
+  fullWidthOfTimeline.current = PIXEL.PER_HR.IN_UHD * 24;
+}
+```
+
+- 마운트 후 윈도우 사이즈가 변화하는 경우
+  - 예를 들면 mobile range를 나타내는 mediaQuery을 이용해서 만든 MediaQueryList가 있다고 할 때,
+  - 양쪽 중 어느 쪽으로든 그 범위를 벗어나면, change event가 발생하고 이는 MediaQueryList에 전달됩니다.
+  - 그러므로 event handler를 component내에서 정의하여 어느 range로 변화하는지를 포착해 적절한 msToPx값을 설정할 수 있도록 합니다.
+
+```tsx
+const handleTabletRangeAtDetailedArea = useCallback(
+  (ev: MediaQueryListEvent) => {
+    if (ev.matches) {
+      console.log("TABLET IN DETAIL_AREA");
+      divRef.current &&
+        (divRef.current.style.width = PIXEL.PER_HR.IN_TABLET * 24 + "px");
+      msToPx.current = PIXEL.PER_SEC.IN_TABLET / 1000;
+    }
+  },
+  []
+);
+
+mobileRange.addEventListener("change", handleMobileRangeAtDetailedArea);
+tabletRange.addEventListener("change", handleTabletRangeAtDetailedArea);
+fhdRange.addEventListener("change", handleFHD_RangeAtDetailedArea);
+qhdRange.addEventListener("change", handleQHD_RangeAtDetailedArea);
+uhdRange.addEventListener("change", handleUHD_RangeAtDetailedArea);
+```
+
 
 <br />
 Before
@@ -211,6 +298,12 @@ After
 해결 방식
 
 -  */}
+{/* - media query를 사용하기 위해 inline style을 이용한 Timeline component를 styled component로 바꿨습니다.
+- 그런데 기존의 drag와 wheel event handler들이 ref를 이용해 Timeline element의 style object에 직접 접근하는데, 관련 코드들이 Styled Component로 바꿨을 때 잘 작동하지 않았습니다. 
+- 디버깅하기에는 너무 복잡해 보여서 기존의 inline 스타일을 유지하면서 CSS media query 없이 responsive design을 적용할 방법을 찾아봤습니다.
+- 다행히도 MediaQueryList Web API가 존재해서 그것들을 사용했습니다.
+  - 원하는 range에 해당하는 MediaQueryList object 정의
+  - 각 list object에 change event listener를 정의하여 responsiveness 적용 */}
 
 
 <br />

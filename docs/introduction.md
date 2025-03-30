@@ -35,8 +35,8 @@ slug: /
     - [구현 관련 어려웠던 점](https://pomodoro-doc.vercel.app/problem-solving#horizontal-timeline-%EB%A7%8C%EB%93%A4%EA%B8%B0)
 - WEB APIs
   - [matchMedia](https://developer.mozilla.org/en-US/docs/Web/API/Window/matchMedia), [MediaQueryList](https://developer.mozilla.org/en-US/docs/Web/API/MediaQueryList)
-    - [example](https://pomodoro-doc.vercel.app/features#%EB%B0%98%EC%9D%91%ED%98%95-%EB%94%94%EC%9E%90%EC%9D%B8-29-34)
-    - [at-problem-solving](https://pomodoro-doc.vercel.app/problem-solving#responsive%EA%B4%80%EB%A0%A8-css%EA%B0%80-%EC%9E%91%EB%8F%99%ED%95%98%EC%A7%80-%EC%95%8A%EC%95%84%EC%84%9C-web-api%EB%A5%BC-%EC%9D%B4%EC%9A%A9)
+    - [기능 및 관련 영상](https://pomodoro-doc.vercel.app/features#%EB%B0%98%EC%9D%91%ED%98%95-%EB%94%94%EC%9E%90%EC%9D%B8-29-34)
+    - [사용하게 된 계기 및 방식](https://pomodoro-doc.vercel.app/problem-solving#responsive%EA%B4%80%EB%A0%A8-css%EA%B0%80-%EC%9E%91%EB%8F%99%ED%95%98%EC%A7%80-%EC%95%8A%EC%95%84%EC%84%9C-web-api%EB%A5%BC-%EC%9D%B4%EC%9A%A9)
 
 #### TypeScript
 
