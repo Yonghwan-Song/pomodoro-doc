@@ -40,9 +40,10 @@ slug: /
 
 #### TypeScript
 
-- [Index Signatures](https://www.typescriptlang.org/docs/handbook/2/objects.html#index-signatures)
 - [Generic Types](https://www.typescriptlang.org/docs/handbook/2/generics.html#generic-types), [Conditional Types](https://www.typescriptlang.org/docs/handbook/2/conditional-types.html)
-  - [example](https://github.com/Yonghwan-Song/pomodoro/blob/main/client/src/Custom-Hooks/useFetch.tsx#L43)
+  - [description](https://pomodoro-doc.vercel.app/description#generic-types--conditional-types)
+- [Index Signatures](https://www.typescriptlang.org/docs/handbook/2/objects.html#index-signatures)
+  - [description](https://pomodoro-doc.vercel.app/description#index-signature)
 
 <!-- #### SPA Related
 
