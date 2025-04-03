@@ -99,6 +99,7 @@ slug: /
   - 한 세션에서 한 일시 정지들을 타임라인에 그려서 피드백 제공
 - [자동 시작](https://pomodoro-doc.vercel.app/features#autostart)
 - [Statistics 페이지에서 일간 및 주간 통계 제공](https://pomodoro-doc.vercel.app/features#statistics)
+- [한 사이클을 얼마나 잘 이행했는지에 대한 feedback 제공](https://pomodoro-doc.vercel.app/features#cycle-adherence-rate)
 - [세션을 구분하기 위한 카테고리 생성](https://pomodoro-doc.vercel.app/features#settings)
 - [한 세션에서 여러 카테고리의 작업 가능](https://pomodoro-doc.vercel.app/features#categorized-sessions)
 - [카테고리별 통계](https://pomodoro-doc.vercel.app/features#total-graph)

@@ -139,6 +139,38 @@ import { Highlight } from "../src/components/Highlight";
 
 <ResponsivePlayer url="https://youtu.be/seRHzwvFnKI" />
 
+### Cycle Adherence Rate
+
+- 여러 개의 세션으로 구성되는 한 사이클을 얼마나 잘 이행했는지를 percent 값으로 나타냅니다.
+- 이 값은 목표한 사이클 구성에서 계산되는 (target) ratio를 실제로 한 사이클을 완료한 후 계산되는 ratio로 나눈 값입니다.
+- ratio 계산방식
+  - 한 사이클 중 실제로 집중한 시간을 사이클이 끝날 때까지 걸린 시간으로 나눈 값입니다.
+  - target ratio는 설정한 값을 100% 이행한다는 가정하에 계산한 값입니다.
+  - ratio는 여러 가지 이유로 목표한 데로 사이클을 수행하지 못한 경우를 반영한 값이고, 정해진 틀에서 벗어나는 경우는 다음과 같습니다.
+
+#### 일시 정지
+
+- **pause**: target ratio와 current ratio 모두 0.5이고 adherence rate는 100%입니다.  
+![pause](./img/cycleAdherence/pause.gif)  
+- **resume**: current ratio가 0.44되면서 adherence rate은 88%로 떨어집니다.  
+![resume](./img/cycleAdherence/resume.gif)  
+
+#### 세션에 시간을 추가하거나 빼는 경우
+
+15분을 추가해서 ratio 0.58에 adherence rate 116%가 되었다가,
+15분을 다시 줄여서 원래 값인 0.44 88%가 됩니다. 그리고 다시 20분을 추가해서 0.61 122%가 됩니다.  
+![add-and-subtract](./img/cycleAdherence/add-and-subtract.gif)  
+
+#### 세션을 강제로 일찍 종료하는 경우
+
+계획했던 집중시간보다 덜 이행했기 때문에 ratio와 adherence rate이 0.4 80%로 줄어들었습니다.  
+![end-pomo](./img/cycleAdherence/end-pomo.gif)  
+
+#### 다음 세션을 늦게 시작하는 경우
+
+집중시간을 줄어들지 않지만 그만큼 집중하는 데 걸리는 시간이 더 길어졌으므로 ratio와 adherence rate이 0.36 72%로 줄어들었습니다.  
+![late-start-break](./img/cycleAdherence/late-start-break.gif)  
+
 ### Statistics
 
 Pomodoro session에 대한 통계를 제공합니다.

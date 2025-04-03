@@ -3,6 +3,7 @@ sidebar_position: 3
 ---
 
 import { Highlight } from "../src/components/Highlight";
+import Collapse from "../src/components/Collapse"
 
 # Problem Solving
 
@@ -86,7 +87,7 @@ index.tsx파일에 다음처럼 [countDown 함수](https://github.com/Yonghwan-S
 
 1. Service worker script를 이용해서, indexed db에 저장된 `timersStates`를 update합니다.
    이렇게 되면 `/timer`로 돌아왔을 때 indexedDB에서 가져오는 상태값은 세션 종료를 반영한 것이므로 이를 이용해서 바로 다음 세션 UI를 render할 수 있습니다.
-2. `/statistics`에서 pomo session이 종료될 때, 그 값을 통계 그래프에 곧바로 반영하기 위해 <Highlight color="#25c2a0">**Pub/Sub 패턴**[^3]</Highlight>을 사용했습니다.
+2. `/statistics`에서 pomo session이 종료될 때, 그 값을 통계 그래프에 곧바로 반영하기 위해 <Highlight color="#25c2a0">**Pub/Sub 패턴**</Highlight>을 사용했습니다.
 
 #### 어려웠던 점 - service worker가 작동하는 방식이 저의 예상과 달랐습니다.
 
@@ -101,6 +102,245 @@ index.tsx파일에 다음처럼 [countDown 함수](https://github.com/Yonghwan-S
 - 세션 카운트 다운을 service worker script에서 `setInterval()`을 이용해 세션을 countdown하려 했는데, developer tools를 켜놓고 잘 돌아가는지 로그를 찍어서 확인할 때는 잘 작동했는데,
   developer tools를 끄고 실행하면 카운트 다운이 도중에 멈췄습니다. 이유는 서비스 워커 스크립트는 몇 가지 event에 반응하여 할당된 일을 마무리하면 바로 down되는 작동방식 때문이었습니다[^6].
 - 그래서 코드를 수정하여 countDown을 sw.js에서 index.tsx로 옮기고 session이 끝날 때 sw.js에 message (event)를 날려서 기존에 작성했던 것들을 활용하여 필요한 작업들을 할 수 있게 했습니다[^4] .
+
+<Collapse title={"pubsub definition"}>
+```tsx
+// reference: https://www.youtube.com/watch?v=aynSM8llOBs
+
+type Callback = (data: any) => void;
+interface PubsubType {
+  events: { [index: string]: Set<(data: any) => void> };
+  subscribe: (evName: string, cb: Callback) => () => void;
+  unsubscribe: (evName: string, cb: Callback) => void;
+  publish: (evName: string, data: any) => void;
+}
+export const pubsub: PubsubType = {
+  events: {},
+
+  subscribe: function (evName, cb) {
+    if (!(evName in this.events)) {
+      this.events[evName] = new Set();
+    }
+    this.events[evName].add(cb);
+
+    return () => {
+      this.events[evName].delete(cb);
+    };
+  },
+
+  unsubscribe: function (evName, cb) {
+    if (evName in this.events) {
+      this.events[evName].delete(cb);
+    }
+  },
+
+  publish: function (evName, data: any) {
+    if (this.events[evName]) {
+      this.events[evName].forEach((f) => {
+        f(data);
+      });
+    }
+  },
+};
+
+```
+</Collapse>
+<Collapse title={"publish()"}>
+```tsx
+// in client/src/sw.js
+async function recordPomo(startTime, idTokenAndEmail, infoArray, sessionData) {
+  let body = null;
+
+  try {
+    const { idToken, email } = idTokenAndEmail;
+    const today = new Date(startTime);
+    let LocaleDateString = `${
+      today.getMonth() + 1
+    }/${today.getDate()}/${today.getFullYear()}`;
+
+    const final = convertMilliSecToMin(
+      createDataSortedByTimestamp(
+        infoArray,
+        sessionData.pause.record,
+        sessionData.endTime
+      )
+        .reduce(calculateDurationForEveryCategory, {
+          durationArr: [],
+          currentType: "focus",
+          currentOwner: "",
+          currentStartTime: 0,
+        })
+        .durationArr.reduce(aggregateFocusDurationOfTheSameCategory, {
+          c_duration_array: [],
+          currentCategoryName: "",
+        }).c_duration_array
+    ).map((val) => {
+      if (val.categoryName !== "uncategorized") {
+        return {
+          userEmail: email,
+          duration: val.duration,
+          startTime: val.startTime,
+          date: LocaleDateString,
+          isDummy: false,
+          category: {
+            name: val.categoryName,
+          },
+        };
+      } else {
+        return {
+          userEmail: email,
+          duration: val.duration,
+          startTime: val.startTime,
+          date: LocaleDateString,
+          isDummy: false,
+        };
+      }
+    });
+
+    BC.postMessage({
+      evName: "pomoAdded", // <--------------------------------------------------------
+      payload: final,
+    });
+
+    //...
+  } catch (error) {
+    console.warn(error);
+  }
+}
+
+// in client/src/index.tsx
+BC.addEventListener("message", async (ev) => {
+  const { evName, payload } = ev.data;
+
+  switch (evName) {
+    case "pomoAdded":
+      // type of the payload
+      // {
+      //   userEmail: string;
+      //   duration: number;
+      //   startTime: number;
+      //   date: string;
+      //   isDummy: boolean;
+      //   category?: {
+      //     name: string;
+      //   };
+      // }[]
+      pubsub.publish(evName, payload); // <--------------------------------------------
+      break;
+    
+    // ...
+
+    default:
+      console.warn(`Unhandled event name: ${evName}`);
+      break;
+  }
+});
+
+```
+</Collapse>
+<Collapse title={"subscribe()"}>
+```tsx
+  // in client/src/Pages/Statistics/Statistics.tsx
+  useEffect(() => {
+    countDown(localStorage.getItem("idOfSetInterval"));
+
+    const unsub = pubsub.subscribe(
+      "pomoAdded",
+      (
+        final: {
+          useEmail: string;
+          duration: number;
+          startTime: number;
+          date: string;
+          isDummy: boolean;
+          category?: {
+            name: string;
+          };
+        }[]
+      ) => {
+        setStatData((prev) => {
+          if (!prev) {
+            return prev;
+          } else {
+            let today = new Date();
+            const todayDateString = `${
+              today.getMonth() + 1
+            }/${today.getDate()}/${today.getFullYear()}`;
+            let days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+            let cloned = [...prev];
+            let doesTodayStatExist =
+              cloned.length !== 0 &&
+              cloned[cloned.length - 1].date === todayDateString;
+
+            if (doesTodayStatExist) {
+              for (const pomoDoc of final) {
+                cloned[cloned.length - 1].total += pomoDoc.duration;
+                if (pomoDoc.category) {
+                  cloned[cloned.length - 1].subtotalByCategory[
+                    pomoDoc.category.name
+                  ].duration += pomoDoc.duration;
+                } else {
+                  cloned[cloned.length - 1].withoutCategory += pomoDoc.duration;
+                }
+              }
+            }
+            if (!doesTodayStatExist) {
+              const now = new Date();
+              const startOfTodayTimestamp = new Date(
+                now.getFullYear(),
+                now.getMonth(),
+                now.getDate()
+              ).getTime();
+
+              let dayStat: DayStat = {
+                date: todayDateString,
+                timestamp: startOfTodayTimestamp,
+                dayOfWeek: days[today.getDay()],
+                total: 0,
+                subtotalByCategory: createBaseCategorySubtotal(),
+                withoutCategory: 0,
+                weekNumber: getISOWeek(Date.now()),
+              };
+
+              for (const pomoDoc of final) {
+                dayStat.total += pomoDoc.duration;
+                if (pomoDoc.category) {
+                  dayStat.subtotalByCategory[pomoDoc.category.name].duration +=
+                    pomoDoc.duration;
+                } else {
+                  dayStat.withoutCategory += pomoDoc.duration;
+                }
+              }
+
+              cloned.push(dayStat);
+            }
+
+            setSum((prev) => {
+              const retVal = { ...prev };
+              for (const pomoDoc of final) {
+                retVal.today += pomoDoc.duration;
+                retVal.thisWeek += pomoDoc.duration;
+                retVal.thisMonth += pomoDoc.duration;
+                retVal.allTime += pomoDoc.duration;
+              }
+              return retVal;
+            });
+
+            return cloned;
+          }
+        });
+      }
+    );
+
+    return () => {
+      unsub();
+    };
+  }, []);
+```
+</Collapse>
+
+
 
 #### Sequence Diagram
 
