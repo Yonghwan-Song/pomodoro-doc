@@ -257,6 +257,65 @@ Total Graph는 Stacked Graph이므로 특정 카테고리의 추세를 직관적
 
 ![enable-todoist-Integration](./img/integrate-todoist.png)
 
+- State Validation
+  - CSRF (Cross-Site Request Forgery)를 방지하기 위해
+  - `oauth/start` route에서 authorization url을 만들 때 state을 in-memory Map에 저장 후 나중에 redirect url로 오는 request의 state query string과 비교.
+    - 현재 API server는 render.com의 starter plan을 이용 중이고, instance는 하나로 제한됩니다.
+    - 그래서, `oauth/callback` route로의 GET request를 받게 되는 instance는
+    - 처음에 state을 만들어낸 instance와 항상 동일하기 때문에, redis같은 instance들 간에 공유할 수 있는 공간에 따로 state을 저장할 필요는 없었습니다.
+
+
+<Collapse title={"관련 타입 및 변수 정의"}>
+```ts
+type StateValidationResult = {
+  isValid: boolean;
+  reason?: 'csrf_error' | 'timeout' | 'user_canceled';
+  userEmail?: string; // Include userEmail for successful validation
+};
+
+type StateMapValue = {
+  createdAt: number;
+  userEmail: string;
+};
+
+@Injectable()
+export class TodoistService {
+  private readonly clientId: string;
+  private readonly clientSecret: string;
+  private readonly stateMap = new Map<string, StateMapValue>();
+  private readonly stateTTL = 5 * 60 * 1000; // 5 minutes in milliseconds
+...
+```
+</Collapse>
+
+<Collapse title={"validateState()"}>
+```ts
+  validateState(state: string | undefined): StateValidationResult {
+    if (!state) {
+      this.stateMap.delete(state);
+      return { isValid: false, reason: 'user_canceled' };
+    }
+
+    const stateData = this.stateMap.get(state);
+
+    if (!stateData) {
+      return { isValid: false, reason: 'csrf_error' };
+    }
+
+    const { createdAt, userEmail } = stateData;
+    const elapsed = Date.now() - createdAt;
+
+    if (elapsed > this.stateTTL) {
+      this.stateMap.delete(state);
+      return { isValid: false, reason: 'timeout' };
+    }
+
+    this.stateMap.delete(state);
+    return { isValid: true, userEmail }; // Include userEmail in the result
+  }
+```
+</Collapse>
+
 <ResponsivePlayer url="https://youtu.be/PVOntzuxOSo" />
 
 
