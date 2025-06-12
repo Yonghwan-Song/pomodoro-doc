@@ -112,6 +112,69 @@ slug: /
 
 ![architecture](./img/architecture.png)
 
+## Database Document Relationships
+
+```mermaid
+---
+$$title: Pomodoro App Collections Overview
+---
+erDiagram
+    User {
+        string firebaseUid
+        string userEmail
+        ObjectId[] cycleSettings
+        ObjectId[] categories
+        object autoStartSetting
+        object goals
+        object timersStates
+        array taskChangeInfoArray
+    }
+
+    CycleSetting {
+        string userEmail
+        string name
+        boolean isCurrent
+        object pomoSetting
+        array cycleStat
+    }
+
+    Category {
+        string userEmail
+        string name
+        string color
+        boolean isCurrent
+    }
+
+    Pomodoro {
+        string userEmail
+        number duration
+        number startTime
+        ObjectId category
+        string taskId
+    }
+
+    TodayRecord {
+        string userEmail
+        string kind
+        number startTime
+        object pause
+    }
+
+    TodoistTaskTracking {
+        string userEmail
+        string taskId
+        number duration
+    }
+
+		User ||--o{ Pomodoro: has
+		User ||--o{ TodayRecord: has
+		User ||--o{ Category: has
+		User ||--|{ CycleSetting: has
+		User ||--o{ TodoistTaskTracking: has
+		Category |o--o{Pomodoro: is-run-by
+		TodoistTaskTracking |o--o{Pomodoro: is-run-by
+```
+
 ## Page Screenshots
 
 - 아래는 각 페이지의 간단한 스크린샷입니다. 구체적인 기능 설명은 'Features' 사이드바 항목에서 다루겠습니다.
