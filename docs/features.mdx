@@ -253,9 +253,29 @@ Total Graph는 Stacked Graph이므로 특정 카테고리의 추세를 직관적
   - 원하는 작업을 선택하여 해당 작업에 얼마나 시간을 할애했는지 추적할 수 있습니다.
 
 - 방식: OAuth 2.0 인증 플로우를 [Todoist API TypeScript Client](https://doist.github.io/todoist-api-typescript/) library를 이용해서 구현.
-- Sequence Diagarm: integrate Todoist ([이미지 링크](./img/integrate-todoist.png))
+- Sequence Diagarm: [enable integration](./img/integrate-todoist.png)
+{/* - Sequence Diagarm: [enable integration](./assets/enable-todoist-integration.mmd) */}
 
-![enable-todoist-Integration](./img/integrate-todoist.png)
+```mermaid
+sequenceDiagram
+    User->>F.E App: toggle the integration button
+    F.E App->>API Server: request an `authorization url`<br/>(to the route `oauth/start`)
+    
+    API Server->>API Server: generateAuthorizationUrl(userEmail):<br/>- get an url with SDK<br/>- generate and store 'state' using Map
+    API Server-->>F.E App: an authorization url
+    F.E App ->> F.E App: redirect the user to the url where a consent screen appears
+    F.E App ->> Todoist Authorization Server: consent
+    Todoist Authorization Server ->> API Server: Get request to `oauth/callback` route with query params:<br/>1. state<br/>2. authorization code
+    API Server ->> API Server: exchangeForToken(ocde, state): validate the state
+    alt is valid
+    		API Server ->> Todoist Authorization Server: Req to get accessToken
+    		Todoist Authorization Server -->> API Server: accessToken
+    		API Server ->> MongoDB Atlas: update the user with the accessToken
+    		API Server ->> F.E App: redirect to `/settings` with a success param
+    else is invalid
+    		API Server ->> F.E App: redirect to `/settings` with a failed or canceled param
+    end
+```
 
 - State Validation
   - CSRF (Cross-Site Request Forgery)를 방지하기 위해
