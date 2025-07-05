@@ -83,7 +83,7 @@ const config: Config = {
       },
       items: [
         {
-          href: "https://www.pomodoroaid.online",
+          href: "https://pomodoro-yhs.vercel.app",
           label: "Live Web App",
           position: "right",
         },
