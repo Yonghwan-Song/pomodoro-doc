@@ -108,72 +108,161 @@ slug: /
 - [인터넷 연결이 불안정한 경우에도 주요 기능을 사용할 수 있도록 하기](https://pomodoro-doc.vercel.app/features#network-disconnection-handling)
 - [Todoist Integration Option 제공](https://pomodoro-doc.vercel.app/features#todoist-integration)
 
-## 아키텍처
+## 아키텍처 (Architecture)
 
-![architecture](./img/architecture.png)
+이 프로젝트의 전체 시스템 아키텍처는 C4 모델을 사용하여 표현했습니다. C4 모델은 소프트웨어 시스템을 위성 사진을 보듯 가장 넓은 관점(C1)에서 시작하여, 점차 코드가 있는 상세 레벨(C4)까지 확대하며 설명하는 방식입니다.
 
-## Database Document Relationships
+### System Context Diagram (C1)
+
+이 다이어그램은 우리 '뽀모도로 앱'이 외부 세계와 어떻게 상호작용하는지 보여주는 가장 높은 수준의 지도입니다.
+
+<!-- (여기에 C1 다이어그램 삽입) -->
 
 ```mermaid
----
-$$title: Pomodoro App Collections Overview
----
-erDiagram
-    User {
-        string firebaseUid
-        string userEmail
-        ObjectId[] cycleSettings
-        ObjectId[] categories
-        object autoStartSetting
-        object goals
-        object timersStates
-        array taskChangeInfoArray
-    }
+flowchart TD
+    %% --- 노드 정의 ---
+    User("fa:fa-user 사용자")
 
-    CycleSetting {
-        string userEmail
-        string name
-        boolean isCurrent
-        object pomoSetting
-        array cycleStat
-    }
+    subgraph " "
+        App("<b>뽀모도로 생산성 앱</b><br>(Our System)")
+    end
 
-    Category {
-        string userEmail
-        string name
-        string color
-        boolean isCurrent
-    }
+    subgraph "외부 시스템"
+        direction LR
+        Google("fa:fa-brands-google Google<br>(인증)")
+        Firebase("fa:fa-brands-google Firebase<br>(토큰 검증)")
+        Todoist("fa:fa-check-square Todoist<br>(업무 관리)")
+    end
 
-    Pomodoro {
-        string userEmail
-        number duration
-        number startTime
-        ObjectId category
-        string taskId
-    }
+    %% --- 관계 정의 (양방향 관계 수정) ---
+    User -- "액션 수행 (클릭, 입력 등)" --> App
+    App -- "UI 업데이트 및 피드백" --> User
 
-    TodayRecord {
-        string userEmail
-        string kind
-        number startTime
-        object pause
-    }
+    App -- "1단계: 로그인 요청" --> Google
+    Google -- "2단계: ID 토큰 전달" --> App
 
-    TodoistTaskTracking {
-        string userEmail
-        string taskId
-        number duration
-    }
+    App -- "3단계: 토큰 검증 요청" --> Firebase
+    Firebase -- "4단계: 검증 결과 응답" --> App
 
-		User ||--o{ Pomodoro: has
-		User ||--o{ TodayRecord: has
-		User ||--o{ Category: has
-		User ||--|{ CycleSetting: has
-		User ||--o{ TodoistTaskTracking: has
-		Category |o--o{Pomodoro: is-run-by
-		TodoistTaskTracking |o--o{Pomodoro: is-run-by
+
+    App -- "Task 데이터 요청" --> Todoist
+    Todoist -- "Task 데이터 응답" --> App
+
+    %% --- 스타일 꾸미기 ---
+    style User fill:#2a9d8f,stroke:#264653,color:#fff
+    style App fill:#264653,stroke:#2a9d8f,color:#fff
+    style Google fill:#e76f51,stroke:#f4a261,color:#fff
+    style Firebase fill:#e76f51,stroke:#f4a261,color:#fff
+    style Todoist fill:#e76f51,stroke:#f4a261,color:#fff
 ```
+
+### Container Diagram (C2)
+
+위 시스템을 확대한 다이어그램입니다. '뽀모도로 앱'이 어떤 기술적인 컨테이너들(웹 애플리케이션, API 서버, 데이터베이스 등)로 구성되어 있는지 보여줍니다.
+
+```mermaid
+flowchart TD
+    %% --- 노드 정의 ---
+    User("fa:fa-user 사용자")
+
+    %% subgraph " "
+        %% --- 외부 시스템 그룹 (수직 정렬로 수정) ---
+        %% subgraph "외부 시스템 (External Systems)" 괄호 부분 text 짤림.
+        subgraph "외부 시스템"
+
+            Google("<b>Google</b><br>[Identity Provider]")
+            Firebase("<b>Firebase Admin</b><br>[Token Verification]")
+            Todoist("<b>Todoist API</b><br>[Task Management]")
+        end
+    %% end
+
+    %% subgraph " "
+        %% --- 우리 시스템 그룹 ---
+        %% subgraph "뽀모도로 관리 시스템 (Our System)" 괄호 부분 text 짤림.
+        subgraph "뽀모도로 관리 시스템"
+
+            direction LR
+            Frontend("<b>프론트엔드</b><br>[React SPA in Browser]")
+            Backend("<b>백엔드 API</b><br>[NestJS on Server]")
+            Database("<b>데이터베이스</b><br>[MongoDB Atlas]")
+        end
+    %% end
+
+    %% --- 관계 정의 ---
+    User -- "사용" --> Frontend
+    Frontend -- "API 요청<br>[HTTPS/REST]" --> Backend
+    Frontend -- "OAuth 2.0 인증" --> Google
+    Backend -- "ID 토큰 검증" --> Firebase
+    Backend -- "데이터 Read/Write" --> Database
+    Backend -- "할 일 목록 동기화<br>[REST API]" --> Todoist
+
+    %% --- 스타일 ---
+    style User fill:#2a9d8f,stroke:#264653,color:#fff
+    style Frontend fill:#264653,stroke:#2a9d8f,color:#fff
+    style Backend fill:#264653,stroke:#2a9d8f,color:#fff
+    style Database fill:#264653,stroke:#2a9d8f,color:#fff
+    style Google fill:#e76f51,stroke:#f4a261,color:#fff
+    style Firebase fill:#e76f51,stroke:#f4a261,color:#fff
+    style Todoist fill:#e76f51,stroke:#f4a261,color:#fff
+```
+
+<!-- ![architecture](./img/architecture.png) -->
+
+<!-- ## Database Document Relationships
+
+```mermaid
+erDiagram
+    USER {
+        ObjectId _id "PK"
+        string userEmail "UK"
+        string firebaseUid "UK"
+    }
+
+    CYCLE_SETTING {
+        ObjectId _id "PK"
+        string userEmail "FK"
+        string name
+    }
+
+    CATEGORY {
+        ObjectId _id "PK"
+        string userEmail "FK"
+        string name
+    }
+
+    POMODORO {
+        ObjectId _id "PK"
+        string userEmail "FK"
+        ObjectId category "FK"
+        string taskId "Logical FK"
+    }
+
+    TODAY_RECORD {
+        ObjectId _id "PK"
+        string userEmail "FK"
+        string kind
+    }
+
+    TODOIST_TASK_TRACKING {
+        ObjectId _id "PK"
+        string userEmail "FK"
+        string taskId
+    }
+
+    %% --- 관계 정의 ---
+    %% 한 명의 USER는 여러 데이터를 '소유'합니다. (논리적 관계: userEmail)
+    USER ||..o{ CYCLE_SETTING : "owns"
+    USER ||..o{ CATEGORY : "owns"
+    USER ||..o{ POMODORO : "owns"
+    USER ||..o{ TODAY_RECORD : "owns"
+    USER ||..o{ TODOIST_TASK_TRACKING : "owns"
+
+    %% 한 개의 CATEGORY는 여러 POMODORO에 '할당될' 수 있습니다. (물리적 관계: ref)
+    CATEGORY ||--o{ POMODORO : "is assigned to"
+
+    %% POMODORO와 TODOIST_TASK_TRACKING은 taskId로 연결됩니다. (기능적 관계)
+    POMODORO }o..o{ TODOIST_TASK_TRACKING : "tracks"
+``` -->
 
 ## Page Screenshots
 
