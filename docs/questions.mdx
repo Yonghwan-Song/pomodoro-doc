@@ -103,7 +103,7 @@ main thread의 부담을 줄인다는 막연한 생각과 sw.js를 사용한 김
 - Web API(타이머)는 다른 프로세스에서 작업되고 있기 때문에 멈추지 않습니다.
 - 다만, *Task Queue(작업 큐)는 Service Worker 프로세스에 묶여있기(Process-Specific) 때문에,*
 - Web API가 **콜백(callback)을 전달할 대상(Task Queue)이 사라지는 것**입니다.
-- 부가 설명 링크 -> [Service Worker의 수명 주기와 Web API (setInterval)](./miscellaneous.mdx#Service-Worker의-수명-주기와-Web-API-(setInterval))
+- 부가 설명 링크 -> [Service Worker의 수명 주기와 Web API (setInterval)](./miscellaneous.mdx#service-worker의-수명-주기와-web-api-setinterval)
 
 ---
 
@@ -214,7 +214,7 @@ Service worker는 tab process, 즉 Renderer process와는 별개의 process에�
 그래서 Renderer process의 global execution context의 thisBinding인 window객체에 접근할 수 없고,
 그러므로 window객체를 통해 노출되는 localStorage에 접근할 수 없습니다.
 
-#### [Indexed DB는 어떻게 Service worker와 Main thread에서 모두 접근 가능한지](./miscellaneous.mdx#IndexedDB-아키텍처:-다중-프로세스-접근-원리)
+#### [Indexed DB는 어떻게 Service worker와 Main thread에서 모두 접근 가능한지](./miscellaneous.mdx#indexeddb-아키텍처-다중-프로세스-접근-원리)
 
 ### 너의 인터넷 down catch 로직은 꼭 그것만을 잡는게 아닌 것 같은데 어떻게 생각해?
 Axios interceptor 코드
