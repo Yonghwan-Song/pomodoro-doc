@@ -117,20 +117,86 @@ import { Highlight } from "../src/components/Highlight";
 - Scale Component의 자손들인 OneHour와 TenMinutes에 의해 눈금들이 그려지는 방식.
   - Scale의 역할은 타임라인에 눈금을 그려 넣는 것인데, 시간 단위 그리고 10분 단위의 눈금 요소들을 적절히 위치시켜야 합니다.
   - 예를 들면, 오후 4시부터 5시 사이에 필요한 눈금은 4시, 4시 10분, ..., 4시 50분인데,
-  - OneHour component를 좌표계를 하는 5개의 TenMinutes Component를 적절히 배치한 후,
+  - OneHour component를 좌표계로 하는 5개의 TenMinutes Component를 적절히 배치한 후,
   - 그 OneHour component를 Timeline을 좌표계로 하여 4시에 해당하는 만큼의 x축 값을 설정해줍니다.
 
 - Session이 Timeline에 그려지는 방식
-  - Session component는 이것이 언제 시작되었는지를 나타내는 startTime이라는 timestamp값을 가지고 있습니다.
+  - Session component는 이것이 언제 시작되었는지를 나타내는 startTime이라는 timestamp값을 가지고 있습니다. 
   - 이 값을 초 단위로 변환해서 Timeline의 좌측 끝인 12:00 am으로부터 얼마나 시간이 지났는지를 나타내는 pixel값을 계산할 수 있습니다.
   - 그 값을 이용해서 위치를 잡고, Session의 자식들인 Duration들은
   - 그 크기에 따라 width를 정해서 inline-block으로 수평으로 차곡차곡 쌓아줍니다.
 
 <Collapse title={"Images"}>
+이 그림에서 css Left는 아래 코드에서의 left와 다름. 전자는 타임라인을 viewport에서 얼마나 수평으로 움직이느냐에 관한 것.
+후자는 타임라인 좌측 끝에서부터 session 박스가 얼마나 떨어져있는지 css의 left offset을 이용해서 나타내는 값.
+후자는 session을 구성하는 duration값중 가장 첫번째 값의 startTime과 그날의 오전 12:00에 상응하는 timestamp를 이용해서 계산.
 ![timeline-ui-explanation](./img/timeline-ui-explanation.svg)
 ![scale-ui](./img/scale-ui.svg)
 </Collapse>
+<Collapse title={"seconds --> left css, startTime === duration[0].startTime"}>
+```tsx
+export default function Session({ durations }: SessionProps) {
+  const now = new Date();
+  const startOfTodayTimestamp = new Date(
+    now.getFullYear(),
+    now.getMonth(),
+    now.getDate()
+  ).getTime();
 
+  // If this value is 0, it means that this session started at the start of today.
+  let seconds = Math.floor(
+    (durations[0].startTime - startOfTodayTimestamp) / 1000
+  );
+
+  return (
+    <SessionStyled seconds={seconds}>
+      {durations.map((aDuration) => {
+        return <Duration data={aDuration} key={aDuration.startTime} />;
+      })}
+    </SessionStyled>
+  );
+}
+```
+
+```tsx
+import styled from "styled-components";
+import { MINIMUMS, PIXEL, VH_RATIO } from "../../../constants/index";
+import { BREAK_POINTS } from "../../../constants/index";
+
+type SessionStyledProps = {
+  // This indicates the amount of seconds passed until this session starts since today.
+  seconds: number;
+};
+
+export const SessionStyled = styled.div<SessionStyledProps>`
+  display: inline-block;
+  position: absolute;
+  height: max(${MINIMUMS.SESSION}px, ${VH_RATIO.SESSION}vh);
+  top: 50%;
+  transform: translateY(-50%);
+
+  @media (width <= ${BREAK_POINTS.MOBILE}) {
+    left: ${({ seconds }) => seconds * PIXEL.PER_SEC.IN_MOBILE + "px"};
+  }
+
+  @media (${BREAK_POINTS.MOBILE} < width <= ${BREAK_POINTS.TABLET}) {
+    left: ${({ seconds }) => seconds * PIXEL.PER_SEC.IN_TABLET + "px"};
+  }
+
+  @media (${BREAK_POINTS.TABLET} < width <= ${BREAK_POINTS.FHD}) {
+    left: ${({ seconds }) => seconds * PIXEL.PER_SEC.IN_FHD + "px"};
+  }
+
+  @media (${BREAK_POINTS.FHD} < width <= ${BREAK_POINTS.QHD}) {
+    left: ${({ seconds }) => seconds * PIXEL.PER_SEC.IN_QHD + "px"};
+  }
+
+  @media (${BREAK_POINTS.QHD} < width <= ${BREAK_POINTS.UHD}) {
+    left: ${({ seconds }) => seconds * PIXEL.PER_SEC.IN_UHD + "px"};
+  }
+`;
+```
+</Collapse>
 
 
 #### [반응형 디자인](https://youtu.be/S-Hp1diVBkE) ([#29](https://github.com/Yonghwan-Song/pomodoro/issues/29#issue-1994595288), [#34](https://github.com/Yonghwan-Song/pomodoro/issues/34#issue-2027875141))

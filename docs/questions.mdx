@@ -1,0 +1,372 @@
+---
+sidebar_position: 7
+---
+import { Highlight } from "../src/components/Highlight";
+import Collapse from "../src/components/Collapse"
+
+
+# Questions
+
+## 한 세션이 진행 중일 때(pomo or break 관계없이), 다른 페이지들을 자유롭게 방문할 수 있도록 하는 것
+
+### Global state 대신에 Indexed DB를 사용한 이유
+
+
+이 애플리케이션은 **로그인하지 않은 익명 사용자**도 뽀모도로 타이머, 타임라인 등의 기능을 사용할 수 있도록 설계되었습니다.
+
+이 요구사항을 만족시키기 위해서는, 사용자가 브라우저 탭을 닫거나 컴퓨터를 재부팅한 후에도 데이터가 유지되는 **영속성(Persistence)**이 반드시 필요했습니다.
+
+`Zustand`나 `Redux` 같은 **Global State(전역 상태)** 관리 도구와 **IndexedDB**는 이 '영속성'의 *범위*와 *생명 주기*에 있어 근본적인 차이가 있습니다.
+
+---
+
+#### 1. Global State의 한계: 인메모리(In-Memory)와 휘발성
+
+`Zustand`나 `Redux` 같은 전역 상태 관리 라이브러리는 **인메모리(In-Memory) 저장소**입니다.
+
+* **생명 주기와 렉시컬 환경 (LE):**
+    * 전역 상태 스토어(Store)는 애플리케이션이 로드될 때 생성되는 **자바스크립트 객체**입니다.
+    * 이 객체(State)는 특정 React 컴포넌트에 종속되지는 않지만, 애플리케이션의 최상위 **렉시컬 환경(Lexical Environment)** 또는 클로저(Closure) 내에 존재합니다.
+    * 이 렉시컬 환경의 생명 주기는 **브라우저 탭(Renderer Process)의 생명 주기**와 같습니다.
+
+* **데이터 소실:**
+    * 사용자가 브라우저 탭을 닫거나 새로고침하면, 해당 탭의 **`Renderer` Process**가 종료됩니다.
+    * 이때 해당 프로세스에 할당된 모든 메모리(Heap)와 자바스크립트 실행 컨텍스트(Execution Contexts), 그리고 그에 묶인 **모든 렉시컬 환경이 소멸**됩니다.
+    * 결과적으로, 메모리상에 존재했던 **모든 Global State는 영구적으로 소실됩니다.**
+
+* **결론:** Global State는 "앱이 활성화된 동안"의 상태 관리에 유용하지만, 세션(Session)을 초월하는 영속성을 제공하지 못하므로 익명 사용자의 데이터를 보존할 수 없습니다.
+
+---
+
+#### 2. IndexedDB의 이점: 디스크 기반(Disk-Based)과 영속성
+
+`IndexedDB`는 자바스크립트 객체가 아닌, **디스크(Disk)에 파일로 저장되는 브라우저 내장 데이터베이스**입니다.
+
+* **생명 주기와 아키텍처:**
+    * `IndexedDB` 데이터는 `Renderer` Process(탭)의 메모리가 아닌, **사용자의 하드 드라이브**에 저장됩니다.
+    * 이 데이터는 특정 탭의 생명 주기에 묶여있지 않으며, 모든 프로세스(탭, 서비스 워커)를 관리하는 **"브라우저 프로세스(Browser Process)"**에 의해 중앙 관리됩니다.
+    * `Renderer` Process(메인 스레드)는 오직 **비동기 IPC(프로세스 간 통신)**를 통해서만 브라우저 프로세스에게 데이터 저장을 "요청"할 뿐입니다.
+
+* **데이터 보존:**
+    * 탭이 닫혀서 `Renderer` Process가 종료되더라도, **디스크에 저장된** `IndexedDB` 파일은 전혀 영향을 받지 않습니다.
+    * 사용자가 다음 날 브라우저를 새로 켜고 앱에 재방문하면, 애플리케이션은 다시 `IndexedDB`에 접근하여 어제의 데이터를 그대로 불러올 수 있습니다.
+
+* **결론:** `IndexedDB`는 **세션을 초월하는 영속성**을 제공하는 유일한 솔루션입니다.
+    * 이를 통해 회원가입하지 않은 사용자도 Timeline을 포함한 주요 기능의 데이터를 유지하며 사용할 수 있습니다.
+
+### Session을 종료하는 함수들을 왜 index.ts파일 대신 service worker에 작성했는지?
+
+sw.js가 결국에는 setInterval을 돌리는데 적합하지 않다는 것을 알고 난 후, index.tsx파일에서 countdown함수를 정의해서 사용했습니다.
+countdown이 종료되어 세션이 끝나면 필요한 데이터들을 message event의 payload로 보내서 service worker에서 fetch API를 이용해서 HTTP request를 보냈습니다.
+main thread의 부담을 줄인다는 막연한 생각과 sw.js를 사용한 김에 계속 사용할 수 있으면 해보자는 생각에 버리지 못한 것이 계속 사용하게된 이유입니다.
+어떠한 특별한 기술적 이유 및 그것을 뒷받침한 근거는 매우 부족합니다. 그냥 전제를 대충 하고 그 전제가 옳지 않을까? 하는 막연한 믿음이 있었고,
+기능상에 딱히 문제가 없었기 때문에 그냥 그대로 두었습니다.
+
+그런데 기능을 계속 추가하다보니 sw.js와 index.tsx파일 사이에서 주고받아야할 데이터들이 많아지고 주고 받는 과정의 복잡함도 그 정도나 너무 심해졌습니다.
+이게 정말 필요한것인가 라는 의문도 들었고 막연하게 main thread의 부담을 줄인다는 전제가 과연 옳은것인지 잘 몰랐는데, event loop을 제대로 공부하면서,
+다음과 같은 문제를 인식하게 되었습니다.
+
+#### 1. 잘못된 가정: "모든 작업은 메인 스레드를 막는다"
+
+저의 막연한 전제는 **"`fetch`(네트워크 I/O)나 `IndexedDB`(디스크 I/O) 작업은 '무거운 일'이므로, 메인 스레드에서 실행하면 UI 렌더링(Painting)을 막을(blocking) 것이다"**라는 추측이었습니다.
+
+그래서 이 "무거운 일"을 서비스 워커라는 별도의 스레드로 분리하면 성능에 이득이 있을 것이라 가정했습니다.
+
+#### 2. 실제 원리: 비동기 Web API와 이벤트 루프
+
+하지만 이벤트 루프와 브라우저 아키텍처를 학습하면서, 이 가정이 근본적으로 틀렸음을 깨달았습니다.
+
+핵심은 **`fetch`와 `IndexedDB`가 '비동기(Asynchronous) Web API'**라는 점입니다.
+
+1.  **메인 스레드는 '요청'만 합니다:**
+    메인 스레드(이벤트 루프)는 이 작업들을 '실행'하는 것이 아니라 **'요청(Request)'**만 합니다.
+
+2.  **실제 작업은 다른 프로세스가 처리합니다:**
+    * `fetch` API가 호출되면, 이 요청은 즉시 **IPC(프로세스 간 통신)**를 통해 **네트워크 프로세스(Network Process)**로 위임됩니다.
+    * `IndexedDB` API가 호출되면, 이 요청은 **브라우저 프로세스(Browser Process)**로 위임되어 실제 디스크 I/O를 처리합니다.
+
+3.  **메인 스레드는 막히지 않습니다 (Non-Blocking):**
+    메인 스레드는 이 요청을 보낸 직후, 작업이 완료되기를 기다리지 않고 **즉시 다음 일(UI 렌더링, 사용자 입력 처리)**을 수행합니다.
+
+4.  **결과는 큐로 돌아옵니다:**
+    나중에 다른 프로세스(네트워크, 브라우저)가 작업을 완료하면, 그 결과(콜백)가 **태스크 큐(Task Queue)**를 통해 메인 스레드의 이벤트 루프로 돌아와 처리됩니다.
+
+#### 3. 결론: 불필요한 복잡성 (성급한 최적화)
+
+결론적으로, 제가 "무겁다"고 생각했던 작업들은 **애초에 메인 스레드를 막지 않는(non-blocking) 비동기 작업**이었습니다.
+
+`sw.js`로 작업을 분리한 것은 성능상 이득이 전혀 없는 **'성급한 최적화(Premature Optimization)'**였습니다. 오히려 로직이 `index.tsx`와 `sw.js` 두 파일로 분산되고, 불필요한 스레드 간 통신(`postMessage`, `BroadcastChannel`) 오버헤드만 발생시켜 코드의 복잡성과 유지보수성만 악화시킨 잘못된 설계였습니다.
+
+### Service worker process가 종료된다고 해서, 어떻게 위임된 작업인 setInterval까지 멈추게 되는지?
+
+
+- Web API(타이머)는 다른 프로세스에서 작업되고 있기 때문에 멈추지 않습니다.
+- 다만, *Task Queue(작업 큐)는 Service Worker 프로세스에 묶여있기(Process-Specific) 때문에,*
+- Web API가 **콜백(callback)을 전달할 대상(Task Queue)이 사라지는 것**입니다.
+- 부가 설명 링크 -> [Service Worker의 수명 주기와 Web API (setInterval)](./miscellaneous.mdx#Service-Worker의-수명-주기와-Web-API-(setInterval))
+
+---
+
+## 인터넷 연결이 끊길 때에도 핵심 기능 사용할 수 있게 하기
+
+### 왜 꼭 `Indexed DB`를 이용해야 했는지? Cache는 왜 사용하지 않은 것인지?
+
+#### 데이터 모양에 더 적합한 유연한 구조이다 Cache보다
+
+실패한 HTTP request를 저장하는 Indexed DB의 모양이 아래처럼 정의되어 있는데,
+한 사용자가 같은 컴퓨터의 같은 브라우저를 사용할 수도 있다는 가정하에, _사용자별로 실패한 request를 저장하는_ 구조입니다.
+그리고 value에 해당하는 객체는 HTTP method별로 실패한 request를 모아두는 구조입니다.
+이러한 객체구조를 만들고 상황에 따라 그중 일부를 update하는 로직이 필요한 상황에서는 JS Object를 value로 저장할 수 있는
+Indexed DB가 단지 key value pair로 Request와 Response Object를 강제하는 cache보다 적합합니다.
+<Collapse title={"Code"}>
+```typescript
+import { IDBPDatabase, DBSchema, openDB } from "idb";
+
+// ...
+
+interface TimerRelatedDB extends DBSchema {
+  // ...
+
+  failedReqInfo: {
+    value: {
+      userEmail: string;
+      value: ERR_CONTROLLER["failedReqInfo"]; //https://www.typescriptlang.org/docs/handbook/2/indexed-access-types.html
+    };
+    key: string;
+  };
+
+  // ...
+}
+```
+
+```typescript
+export interface ERR_CONTROLLER {
+  owner: string;
+  failedReqInfo: {
+    GET: UrlAndData[];
+    POST: UrlAndData[];
+    PATCH: Map<string, UrlAndData>; // TODO: string은 뭐야?
+    DELETE: UrlAndData[];
+  };
+
+  registerFailedReqInfo: (reqConfig: AxiosRequestConfig) => void;
+
+  mergeData: (existingData: any, newReqConfig: AxiosRequestConfig) => any;
+
+  resendFailedReqs: () => Promise<{
+    postResults: PromiseSettledResult<AxiosResponse<any, any>>[];
+    patchResults: PromiseSettledResult<AxiosResponse<any, any>>[];
+  }>;
+
+  getAndResendFailedReqsFromIDB: () => Promise<boolean>;
+
+  storeFailedReqsToIDB: () => Promise<void>;
+
+  emptyFailedReqInfo: () => void;
+
+  handlePatchRequests: (url: string, data: any) => void;
+
+  updatePatchEntry: (url: string, newData: any) => void;
+}
+```
+
+Type definitions
+
+```typescript
+type UrlAndData = {
+  url: string;
+  data?: any;
+};
+
+export interface UpdateCategoryDTO {
+  name: string;
+  data: CategoryDTO;
+}
+export interface UpdateCategoryDTOWithUUID extends UpdateCategoryDTO {
+  _uuid: string;
+}
+export interface CategoryDTO {
+  name?: string;
+  color?: string;
+  isCurrent?: boolean;
+  isOnStat?: boolean;
+}
+```
+</Collapse>
+
+#### service worker에서 fetch API를 보내는 경우에도 사용 가능한 저장소 (localStroage나 sessionStorage와 다르게)
+
+- localStorage는 문자열만 저장 가능하기 때문에, `JSON.stringify()`와 `JSON.parse()`를 이용하면 위의 JS 객체들을 저장 및 꺼내와서 update를 할 수 있습니다.
+
+  - Patch의 Map은 `Object.fromEntries(myMap)`를 사용해서 일반 객체로 변환하고,
+  - `new Map(Object.entries(myObj)`를 사용해서 다시 Map으로 만드는 과정을 반복해야합니다.
+
+- 그러나 service worker에서 http request를 보내는 경우(`/timer`이외의 페이지에서 세션이 종료되는 경우)에는 localStorage에 직접 접근이 불가능하므로 사용할 수 없습니다.
+
+  - 물론 Renderer process에서 message event를 이용해서 localStorage에서 값들을 가져온 후,
+  - message event를 이용해서 service worker에 전달해 줄 수도 있겠지만, 비교적 복잡해 보입니다.
+
+- 그리고 조금이라도 복잡한 category patch payload update같은 작업을 하려면 **synchronous API인 localStorage** 를 사용하는 것보다 **asynchronous API인 indexed db** 를 사용하는 것이 혹시 모를 UI의 버벅거리는 현상(main thread 블로킹)을 막을 수 있습니다.
+
+##### Service worker에서 localStorage에 접근이 불가능한 이유
+
+Service worker는 tab process, 즉 Renderer process와는 별개의 process에서 작동합니다.
+그래서 Renderer process의 global execution context의 thisBinding인 window객체에 접근할 수 없고,
+그러므로 window객체를 통해 노출되는 localStorage에 접근할 수 없습니다.
+
+#### [Indexed DB는 어떻게 Service worker와 Main thread에서 모두 접근 가능한지](./miscellaneous.mdx#IndexedDB-아키텍처:-다중-프로세스-접근-원리)
+
+### 너의 인터넷 down catch 로직은 꼭 그것만을 잡는게 아닌 것 같은데 어떻게 생각해?
+Axios interceptor 코드
+<Collapse title={"Code"}>
+```typescript
+axiosInstance.interceptors.response.use(
+  function (response) {
+    return response;
+  },
+  function (error: AxiosError) {
+    console.log("error message from the interceptor", error);
+    if (error.code === "ERR_NETWORK" && !navigator.onLine) {
+      // console.log("axios req config is here");
+      // console.log(error.config);
+      // console.log("navigator.online", navigator.onLine);
+
+      if (
+        error.config.method?.toUpperCase() === "PATCH" &&
+        error.config.url === RESOURCE.CATEGORIES
+      ) {
+        return Promise.reject(error.config);
+      }
+
+      if (
+        error.config.method?.toUpperCase() !== "GET" &&
+        error.config.method?.toUpperCase() !== "DELETE"
+      )
+        // PATCH requests to any URL other than "/categories", All POST requests.
+        errController.registerFailedReqInfo(error.config);
+    }
+    return Promise.reject(error);
+  }
+);
+```
+</Collapse>
+
+{/* #### `Navigator.onLine`의 문제점(한계) - LAN 자체에서 발생하는 인터넷 연결 문제는 잡아내지 못한다
+
+`Navigator.onLine`는 사용자의 machine과 Local Network에 연결되어 있는지만을 기준으로 `true/false`를 반환합니다.
+현재 사용하고 있는 LAN의 외부와의 연결이 문제가 없다는 전제하에 이 API사용은 괜찮습니다.
+하지만 <Highlight color="#25c2a0">**router 자체에 문제가 있어서 외부 망과의 연결이 실패하는 경우,**</Highlight>
+위의 코드에서 `if (error.code === "ERR_NETWORK" && !navigator.onLine)`이 `if(true && !true)`로 되면서 에러를 잡아내지 못합니다.
+
+처음에 이 기능을 추가한 목적은 도서관 시험기간에 간헐적으로 발생하는 인터넷 연결 끊김 현상 때문이었습니다.
+그런데 이 disconnection은 보통 나의 컴퓨터와 Local network과의 연결이 끊기는 것이므로, 문제상황을 잡아내는데는 문제가 없습니다.
+
+
+
+애초에 navigator.onLine을 사용한 이유는 ERR_NETWORK에 CORs에러등 다른 이유들이 포함되어 있어서 이것들을 제외시키고
+오로지 인터넷 연결 문제만을 잡아내기 위함이였는데, navigator.onLine이 무엇을 의미하는지 정확하게 알지 못했습니다.
+
+#### 구현하면서 아쉬웠던 점이나 개선할 수 있는 부분은? */}
+
+#### 오프라인 요청 처리의 기술적 한계
+
+이 애플리케이션의 핵심 기능 중 하나는 인터넷 연결이 불안정한 환경(예: 도서관)에서도 사용자의 작업(예: 뽀모도로 세션 완료)이 유실되지 않도록 보장하는 것입니다.
+
+이를 위해서는 두 가지 문제를 해결해야 합니다.
+1.  **"연결 끊김"**을 정확히 감지하여 요청을 IndexedDB에 저장하는 것.
+2.  **"재연결"**을 정확히 감지하여 IndexedDB의 요청을 서버로 재전송하는 것.
+
+하지만 이 과정에서 브라우저가 제공하는 API의 명확한 **기술적 한계**가 존재했습니다.
+
+---
+
+##### 1. "연결 끊김" 감지의 한계
+
+"인터넷이 안 되는" 상황을 100% 정확하게 감지하는 API는 존재하지 않습니다.
+
+###### `navigator.onLine` (또는 `offline` 이벤트)의 한계
+
+* **동작 방식:** 이 API는 **"내 기기 ↔ 공유기(LAN)"** 간의 연결 상태만 확인합니다. (예: Wi-Fi 연결이 끊어짐)
+* **치명적 문제:** 가장 흔한 문제인, **"공유기는 연결됐지만 공유기의 인터넷(WWW)이 먹통인"** 상태를 감지하지 못합니다.
+* 이 시나리오에서 `navigator.onLine`은 여전히 `true`를 반환하므로, "오프라인" 상태를 놓치게 됩니다.
+
+###### `error.code === 'ERR_NETWORK'` (Axios)의 한계
+
+* **동작 방식:** 실제 서버와 통신을 시도하다가 실패할 때 발생합니다.
+* **장점:** "공유기 인터넷 먹통" 상황(DNS 조회 실패 등)을 **정확히 잡아냅니다.**
+* **한계점:** 너무 포괄적입니다. 실제 오프라인뿐만 아니라, **CORS Preflight 실패**나 일시적인 **DNS 오류** 등 다른 모든 네트워크 레벨의 오류를 포함합니다.
+
+---
+
+##### 2. "재연결" 감지의 한계
+
+"인터넷이 100% 다시 연결되는" 순간을 알려주는 이벤트는 **존재하지 않습니다.**
+
+* **`online` 이벤트의 한계:** `offline` 이벤트와 마찬가지로, **"내 기기 ↔ 공유기(LAN)"** 연결이 복구될 때만 발생합니다.
+* **치명적 문제:** 만약 Wi-Fi 연결은 한 번도 끊기지 않았고(즉, `offline` 이벤트가 발생 안 함) **"공유기의 인터넷(WWW)"**만 먹통이었다가 복구된 경우, `online` 이벤트는 **절대 발생하지 않습니다.**
+* 즉, `online` 이벤트는 재전송을 시도할 "신호탄"은 될 수 있지만, "인터넷이 된다"는 보장으로 사용할 수 없습니다.
+
+---
+
+##### 3. 최종 아키텍처 전략 (실제로 수정 및 구현해야할 부분들)
+
+이러한 API의 한계로 인해, "완벽한 감지"를 포기하는 대신, **"방어적인 설계"**를 시도하는 것이 최종 전략입니다.
+
+###### 1.  **공격적인 저장 (Aggressive Caching)**
+* `navigator.onLine`을 신뢰하지 않습니다.
+  * 현재 코드는 navigator.onLine을 신뢰하여, local machine과 LAN과의 연결 끊김만 잡아내고 있음.
+* `axios` 인터셉터에서 `error.code === 'ERR_NETWORK'`가 발생한 모든 (`POST`, `PATCH`) 요청은, 그 원인이 무엇이든(CORS든, 진짜 오프라인이든) 일단 전부 IndexedDB에 저장합니다.
+
+###### 2.  **낙관적인 재시도 (Optimistic Retries)**
+* "인터넷이 될 것"이라고 **가정**할 수 있는 모든 시점에 재전송을 시도합니다.
+* **트리거 1:** `window.addEventListener('online')` (불확실하지만 가장 빠른 신호)
+* **트리거 2:** 앱 로드 시(`DOMContentLoaded`) 또는 로그인 시 (가장 확실한 신호)
+
+###### 3.  **방어적인 재전송 (Defensive Resending - The Safety Net)**
+
+* `resendFailedReqs` 함수는 **"재시도가 또 실패할 경우"**를 대비하는 안전망 역할을 합니다.
+* `Promise.allSettled`로 모든 요청을 재시도한 뒤, 큐를 무조건 비우는 것이 아닙니다.
+* `Promise.allSettled`의 결과 배열을 확인하여, **오직 '성공'(`fulfilled`)한 요청만** 선별적으로 IndexedDB에서 삭제합니다.
+* '실패'(`rejected`)한 요청은 **그대로 IndexedDB에 남겨두어**, 다음 재시도 트리거(예: 다음 앱 로드)를 기다립니다.
+    
+
+이 설계를 통해 `online` 이벤트가 잘못된 신호(False Positive)였더라도, 사용자의 데이터는 유실되지 않고 다음 기회에 다시 전송될 수 있습니다.
+
+---
+
+##### 4. `resendFailedReqs` 로직의 버그 및 개선점 (Safety Net)
+
+현재 `resendFailedReqs` (재전송) 함수에는, 불확실한 신호(예: 인터넷 없는 Wi-Fi의 `online` 이벤트)로 인해 재시도가 또다시 실패했을 때, **데이터가 영구적으로 유실되는 치명적인 버그**가 존재합니다.
+
+###### 💣 치명적인 버그 (데이터 유실)
+
+현재 로직은 `Promise.allSettled`로 재시도를 `await`한 후, 그 **결과(`patchResults`)의 `status`가 'fulfilled'인지 'rejected'인지 확인하지 않습니다.**
+
+* **버그 발생:** 재시도한 요청이 **모두 다시 `ERR_NETWORK`로 실패(rejected)하더라도,** `await` 다음 줄의 `this.failedReqInfo.PATCH.clear();`와 `emptyFailedReqInfo(userEmail);`가 **무조건 실행됩니다.**
+* **결과:** Axios 인터셉터가 이 실패를 감지하고 데이터를 메모리에 '재등록'하려고 시도하지만, 그 직후에 이 삭제 로직이 실행되면서 **메모리와 IndexedDB의 모든 데이터가 영구적으로 삭제됩니다.**
+
+###### ✅ 개선 방안 (Safety Net 구축)
+
+이 데이터 유실 버그를 해결하고 "방어적인 재전송(Safety Net)"을 완성하기 위해서는, **"전체 삭제"**가 아닌 **"선별적 삭제"**로 로직을 변경해야 합니다.
+
+1.  `resendFailedReqs` 함수에서 `PATCH.clear()`, `POST = []`, `emptyFailedReqInfo()` 코드를 **모두 제거해야 합니다.**
+2.  `await Promise.allSettled(...)`가 끝난 후, 반환된 `patchResults`와 `postResults` 배열을 **루프(loop)**로 돌아야 합니다.
+3.  루프 내에서 `result.status === 'fulfilled'`인, 즉 **'성공'한 요청만 골라내야 합니다.**
+4.  **오직 '성공'한 요청들만** `failedReqInfo` 객체(메모리)와 IndexedDB에서 **개별적으로 삭제**하는 로직을 추가해야 합니다.
+5.  `result.status === 'rejected'`인, 즉 **'실패'한 요청은 큐와 DB에 그대로 남겨두어** 다음 재시도 트리거(예: 다음 앱 로드)를 기다리게 해야 합니다.
+
+---
+
+##### 근거 자료 (MDN)
+
+* **`Navigator.onLine`:** [https://developer.mozilla.org/docs/Web/API/Navigator/onLine](https://developer.mozilla.org/docs/Web/API/Navigator/onLine)
+* **`online` / `offline` 이벤트:** [https://developer.mozilla.org/docs/Web/API/Window/online_event](https://developer.mozilla.org/docs/Web/API/Window/online_event)
+
+
+
+
+---
+
+{/* ## Horizontal Timeline 만들기
+
+### 구현하면서 아쉬웠던 점이나 개선할 수 있는 부분은? */}

@@ -1,0 +1,36 @@
+
+# Extra Questions
+## 구현하면서 설계상 어려웠던 점 혹은 판단 미스는?
+### 답변
+- PatternTimer와 Timer를 구분했던 것
+- 애초에 처음 만들 때 부터, over thinking을 했었음.
+- Timer는 실제로 돌아가는 시계이고, 
+  - PatternTimer에 상응하는 것은 시계를 조작하는 사람이라고 생각해서,
+  - 나름의 논리를 가지고 만들었음.
+  - 그런데 Timer인 Child Component에서 Parent component인 PatternTimer의 상태를 직접적으로 필요로 하는 경우가
+  - 가면 갈수록 많이 발생 (그 반대의 경우는 거의 없었는데).
+  - 그래서 나중에 TimerController라는 것으로 통합했음.
+
+## 구현하면서 특히 어려웠다고 느낀 것들은?
+### 1. AutoStart기능을 구현하면서, 그 use case가 너무 복잡해졌음.
+- AutoStart기능을 구현하면서, 그 use case가 너무 복잡해졌음.
+- 내 
+
+### 2. Category를 변환하는 것을 UI로 반영하는 것. [IMPT]
+- 그것의 progress를 계산하고 추적하고, category가 변할때 어떻게 해야하고 하는... 로직들
+- 여기에서 useMemo가 쓰였던 것 같은데 그것에 대해 분석해야함
+
+## UseMemo나 useCallback을 활용한 경험은?
+### 1. Category 변화시 UI반영할 때
+- [ ] 언넝 찾아봐.. codebase
+- [ ] 그리고 새로운 시각이 이제 생겼으니까.. 그것을 이용해서 다시 해석해보고
+
+---
+
+## Zustand store를 사용한 전략은? 대략적인 너의 store에 대해 설명해줘봐
+- Slice를 두어가지로 나누었음.
+
+## Google을 이용해서 login을 했는데, firebase와 google로그인은 별로 상관 없는거 아니야? 여기에서도 OAuth가 어떻게 진행되는지, 그리고 todoist integration의 OAuth와는 어떤 차이점이 있는지 말해봐
+
+## Styled Component를 사용했는데, 사용하다가 나중에 적극 사용하지 않은 이유는?
+## CSS In JS를 사용하면서 좋다고 느낀 것은 없었어?

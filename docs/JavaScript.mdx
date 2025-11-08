@@ -1,0 +1,494 @@
+---
+tags:
+  [
+    JavaScript,
+    Runtime,
+    Execution Context,
+    Lexical Environment,
+    Closure,
+    Study Notes,
+  ]
+sidebar_position: 8
+---
+
+import { Highlight } from "../src/components/Highlight";
+import Collapse from "../src/components/Collapse"
+
+> 🧠 **AI-Assisted Study Note**  
+> 이 노트는 아래의 주제를 학습하는 과정에서 **Gemini**와 **ChatGPT (GPT-5)**과의 대화를 요약한 것입니다.  
+> 정보의 근원은 공개된 ECMAScript 명세, MDN, 그리고 엔진 동작 원리에 대한 다양한 기술 자료들이며,  
+> **주제의 선택, 질문의 방향, 개념 연결 구조는 전적으로 작성자 본인의 학습 과정에서 형성된 것입니다.**
+
+---
+
+# “자바스크립트 런타임과 실행 메커니즘에 대한 정리 (JavaScript Runtime & Execution Mechanism)”
+
+## JavaScript Runtime
+
+### 🔹 정의
+
+**Runtime**이란 프로그램이 실제로 실행되는 시점과 그 실행 환경 전체를 의미한다.  
+즉, **코드가 살아 움직이는 순간과 그걸 가능하게 하는 시스템**을 통틀어 부르는 말이다.
+
+> 💡 **Runtime = 실행 중인 프로그램 + 그 실행을 가능하게 하는 엔진/환경**
+
+---
+
+### ⚙️ JavaScript Runtime 구성 요소
+
+| 구성 요소                         | 설명                                                                         |
+| --------------------------------- | ---------------------------------------------------------------------------- |
+| **JS 엔진 (V8, SpiderMonkey 등)** | JavaScript 코드를 파싱하고 바이트코드로 컴파일해 실행하는 핵심 엔진.         |
+| **메모리 힙 (Memory Heap)**       | 객체, 함수, 클로저 등 데이터가 실제로 저장되는 공간.                         |
+| **콜 스택 (Call Stack)**          | 현재 실행 중인 함수들의 실행 컨텍스트(Execution Context)를 관리.             |
+| **호스트 환경 API**               | 브라우저 또는 Node.js가 제공하는 기능 (예: `setTimeout`, `fetch`, `DOM` 등). |
+| **이벤트 루프 (Event Loop)**      | 콜 스택이 비면 대기 중인 작업(콜백, 프로미스 등)을 큐에서 꺼내 실행.         |
+| **Task Queue / Microtask Queue**  | 비동기 작업을 일시적으로 보관하는 큐.                                        |
+
+> 🧠 즉, **JavaScript Runtime = JS 엔진 + 호스트 환경(API, Event Loop 등)**  
+> → JS 코드가 실제로 실행되는 전체 생태계.
+
+---
+
+### ⏱️ Compile Time vs Runtime
+
+| 시점                      | 설명                                                                    |
+| ------------------------- | ----------------------------------------------------------------------- |
+| **Compile Time (준비기)** | 코드가 해석되고 실행 전 구조를 세팅하는 단계 (렉시컬 환경 구성 등).     |
+| **Runtime (실행기)**      | 코드가 실제로 실행되어 값이 생성되고, 호출 스택이 움직이는 실시간 과정. |
+
+> 예: `function foo()`를 **정의**하는 건 compile time,  
+> `foo()`를 **호출**하는 순간부터 runtime이 시작된다.
+
+---
+
+### 🧩 비유로 이해하기
+
+- **Compile Time** → “무대 세팅”
+- **Runtime** → “배우가 실제로 연기하며 스토리가 진행되는 순간”
+- 코드가 동작하고, 변수가 값으로 살아 있는 그 순간이 바로 **Runtime**이다.
+
+---
+
+### 🔧 요약
+
+- **Runtime**: 코드가 실행되는 “살아 있는 시간대 + 환경”.
+- **JavaScript Runtime**: V8 엔진 + 이벤트 루프 + API 시스템의 조합.
+- **핵심 개념**: _“코드가 실제로 움직이는 순간과 그 생태계 전체를 말한다.”_
+
+---
+
+## 📚 자바스크립트 런타임과 실행 메커니즘
+
+목차는 가장 '물리적인(낮은 수준)' 개념에서 시작하여, '엔진의 동작(메커니즘)'을 거쳐, '추상적인(높은 수준)' 개념으로 나아가도록 구성했습니다.
+
+1.  **Part 1: 메모리 모델 (Stack & Heap)과 값의 복사**
+    - 원시 타입 vs 참조 타입
+    - "단 하나의 복사 규칙" (값 복사 vs 참조 복사의 진실)
+2.  **Part 2: 렉시컬 환경 (Lexical Environment) - '스코프'의 실체**
+    - 명세(Spec)상의 정의: 2가지 구성 요소
+    - V8 엔진의 실제 구현: Fast Path vs Slow Path (Context 객체)
+3.  **Part 3: 실행 컨텍스트 (Execution Context) - '실행'의 주체**
+    - 3가지 구성 요소 (LE, VE, ThisBinding)
+    - 3가지 종류 (GEC, FEC, MEC)
+4.  **Part 4: 호이스팅과 Function Object의 탄생**
+    - 2-Pass 메커니즘: 생성 단계 vs 실행 단계
+    - `var` vs `let/const` (TDZ)
+    - **`function` 선언 (핵심 메커니즘)**
+5.  **Part 5: JIT (Just-In-Time) 컴파일이란?**
+    - JS가 JIT 컴파일 언어인 이유
+6.  **Part 6: 핵심 메커니즘 2 - `this` 바인딩**
+    - `this`가 필요한 이유
+    - EC 종류별 `this` (GEC, MEC)
+    - FEC의 4가지 `this` 결정 규칙 (및 우선순위)
+    - 예외: 화살표 함수 (Lexical `this`)
+7.  **Part 7: 핵심 메커니즘 3 - 클로저 (Closure)**
+    - 클로저의 정의
+    - 클로저의 작동 원리 (Function Object와 `[[Environment]]`)
+8.  **Part 8: 핵심 메커니즘 4 - 모듈 시스템 (ESM)**
+    - 모듈 스코프 (MEC)
+    - CJS vs ESM (Node.js vs 브라우저)
+    - `import/export`와 '라이브 바인딩(Live Binding)'의 실체
+    - 트리 쉐이킹(Tree Shaking)과의 연결
+9.  **Part 9: 기타 주요 용어 정리**
+    - Snapshot (스냅샷)
+    - 정적(Static) vs 동적(Dynamic)
+
+---
+
+### 1. 메모리 모델 (Stack & Heap)과 값의 복사
+
+JS 엔진이 변수를 어떻게 다루는지 이해하는 가장 근본적인 모델입니다.
+
+#### 🧠 Stack vs Heap
+
+- **스택 (Stack):** 함수 호출, 지역 변수, 원시 타입 값, 메모리 주소(포인터) 등 크기가 고정되고 순서가 명확한 데이터를 저장합니다. 접근 속도가 매우 빠릅니다. 함수가 호출되면 '스택 프레임'이 쌓이고(push), 함수가 종료되면 사라집니다(pop).
+- **힙 (Heap):** 객체(Object), 배열(Array), 함수(Function) 등 크기가 유동적이고 복잡한 데이터를 저장하는 거대한 메모리 공간입니다. 스택보다 속도가 느리지만, 데이터의 생명 주기를 더 유연하게 관리할 수 있습니다.
+
+#### 📋 원시 타입 (Primitive) vs 참조 타입 (Reference)
+
+- **원시 타입:** `string`, `number`, `boolean`, `null`, `undefined`, `symbol`.
+- **참조 타입:** `Object` (및 `Array`, `Function`, `Map` 등 객체를 기반으로 하는 모든 것).
+
+#### 🔑 "단 하나의 복사 규칙"
+
+"Copy by Value"와 "Copy by Reference"라는 용어는 종종 혼란을 야기합니다. 사실 JS의 할당(`=`) 메커니즘은 **단 하나**입니다.
+
+> **"모든 할당(`=`)은 스택(슬롯)에 있는 값을 그대로 복사(Copy)한다."**
+
+이 규칙 하나로 모든 것이 설명됩니다. 차이점은 "스택에 무엇이 들어있었는가"입니다.
+
+- **"값에 의한 복사" (Copy by Value)가 일어나는 경우 (원시 타입)**
+  1.  `let a = 10;`
+      - 엔진이 스택에 `a`를 위한 슬롯(공간)을 만들고, 그 슬롯에 **값 `10` 자체**를 저장합니다.
+  2.  `let b = a;`
+      - 엔진이 스택에 `b`를 위한 새 슬롯을 만들고, `a`의 슬롯에 있던 **값 `10`을 복사**해서 넣습니다.
+  3.  `b = 20;`
+      - `b` 슬롯의 값을 `20`으로 바꿉니다. `a` 슬롯에는 아무 영향이 없습니다.
+  - **결과:** `a`와 `b`는 완전히 독립적인 값을 가집니다.
+
+- **"참조에 의한 복사" (Copy by Reference)가 일어나는 경우 (참조 타입)**
+  1.  `let obj1 = { val: 10 };`
+      - 엔진이 `{ val: 10 }` 객체를 **힙(Heap)**에 생성합니다 (주소: `0xABC`).
+      - 엔진이 스택에 `obj1`을 위한 슬롯을 만들고, 그 슬롯에 **힙 주소 `0xABC`**를 저장합니다.
+  2.  `let obj2 = obj1;`
+      - 엔진이 스택에 `obj2`를 위한 새 슬롯을 만들고, `obj1`의 슬롯에 있던 **힙 주소 `0xABC`를 복사**해서 넣습니다.
+  3.  `obj2.val = 20;`
+      - 엔진이 `obj2`의 슬롯에서 `0xABC` 주소를 읽고, 힙으로 찾아가서 `{ val: 20 }`으로 변경합니다.
+  - **결과:** `obj1`과 `obj2`는 **동일한 힙 주소**를 가리키므로, 하나의 객체를 공유합니다. `obj1.val`을 봐도 `20`이 보입니다.
+
+---
+
+### 2. 렉시컬 환경 (Lexical Environment) - '스코프'의 실체
+
+"스코프(Scope)"라는 추상적인 '규칙'을 물리적으로 구현하는 '객체(저장소)'입니다.
+
+#### 📜 명세(Spec)상의 정의
+
+ECMAScript 명세(설계도)에 따르면, `Lexical Environment` (LE)는 2가지 구성 요소를 가진 **추상적인 개념**입니다.
+
+1.  **환경 레코드 (Environment Record):**
+    - `let`, `const`, `function` 등으로 선언된 변수와 함수를 'Key-Value' 형태로 **실제로 저장하는 저장소**입니다.
+    - (e.g., `{ a: 10, b: <uninitialized> }`)
+2.  **외부 환경 참조 (Outer Environment Reference):**
+    - **부모 스코프(상위 LE)를 가리키는 포인터(링크)**입니다.
+    - 이 참조가 꼬리에 꼬리를 물고 연결된 것을 **"스코프 체인(Scope Chain)"**이라고 부릅니다.
+    - JS 엔진이 변수를 찾을 때, 현재 LE의 환경 레코드에 없으면 이 참조를 타고 부모 LE로 올라가서 찾습니다.
+
+#### 🚀 V8 엔진의 실제 구현 (중요)
+
+V8 엔진은 이 'LE'라는 개념을 **최적화**를 위해 두 가지 방식으로 구현합니다.
+
+- **Fast Path (최적화 경로):**
+  - 만약 함수 내의 변수들이 **클로저에 의해 참조되지 않는다면**, V8은 굳이 LE 객체를 만들지 않습니다.
+  - 변수들은 **스택 프레임(Stack Frame)에 직접 생성**됩니다. 함수가 끝나면 스택 프레임과 함께 한 번에 사라지므로(pop) 매우 빠릅니다.
+  - 이 경우 "LE = 스택 프레임 그 자체"입니다.
+
+- **Slow Path (클로저 발생 시):**
+  - 만약 함수 내의 변수가 **내부 함수(클로저)에 의해 참조**된다면, 이 변수는 **함수가 종료된 후에도 살아남아야 합니다.**
+  - 스택은 함수 종료 시 사라지므로, V8은 이 변수들을 스택에 두지 않습니다.
+  - 대신, **`Context`**라는 특별한 객체를 **힙(Heap)에 생성**하고, 클로저가 참조하는 변수들(e.g., `count`)을 이 `Context` 객체 안에 저장합니다.
+  - 이 **힙(Heap)에 생성된 `Context` 객체**가 바로 LE의 '물리적인 실체'입니다.
+  - (이것이 클로저가 작동하는 핵심 원리입니다. Part 7에서 자세히 설명)
+
+---
+
+### 3. 실행 컨텍스트 (Execution Context) - '실행'의 주체
+
+LE가 '환경(지도/변수 저장소)'이라면, `Execution Context` (EC)는 그 환경에서 코드를 '실행하는 주체(프로세스/작업)'입니다. 코드가 실행될 때마다 `Call Stack`에 쌓입니다.
+
+#### 🧩 3가지 구성 요소
+
+ECMAScript 명세에 따르면, EC는 3가지 요소를 가집니다.
+
+1.  **`LexicalEnvironment` (LE):**
+    - `let`, `const`, `function` 선언을 저장하고 관리합니다.
+    - EC가 `{}` 블록 스코프에 진입/탈출할 때마다, EC가 가리키는 `LE` 포인터는 **새로운 '블록 LE'로 교체**됩니다. (이것이 `let`/`const`가 블록 스코프를 갖는 이유)
+<Collapse title={"블록 스코프와 렉시컬 환경 포인터 교체 메커니즘"}>
+#### 블록 스코프와 렉시컬 환경 포인터 교체 메커니즘
+
+`let`과 `const` 키워드가 블록 스코프(Block Scope)를 따르는 원리는, \*\*실행 컨텍스트(Execution Context)\*\*가 코드 블록(`{}`)에 진입하고 탈출할 때, 자신이 참조하는 **렉시컬 환경(Lexical Environment)** 포인터를 동적으로 교체하는 메커니즘에 있습니다.
+
+이 메커니즘은 '변수 섀도잉(Variable Shadowing)'이 발생하는 예제를 통해 가장 명확하게 확인할 수 있습니다.
+
+##### 예제 코드: 스코프별 변수 섀도잉
+
+```javascript
+function scopePointerDemo() {
+  
+  // 1. '함수 LE' (A)
+  let x = 1; 
+  console.log(`(A) 함수 스코프: ${x}`); 
+
+  if (true) {
+    // 2. '블록 LE' (B)
+    let x = 10; // (A)의 x와는 완전히 다른 변수
+    console.log(` (B) 첫 번째 블록: ${x}`); 
+
+    if (true) {
+      // 3. '블록 LE' (C)
+      let x = 100;
+      console.log(`  (C) 두 번째 블록: ${x}`); 
+    } // --- (C) 스코프 탈출 ---
+
+    console.log(` (B) 다시 첫 번째 블록: ${x}`); 
+  } // --- (B) 스코프 탈출 ---
+
+  console.log(`(A) 다시 함수 스코프: ${x}`); 
+}
+
+scopePointerDemo();
+```
+
+**출력 결과:**
+
+```
+(A) 함수 스코프: 1
+ (B) 첫 번째 블록: 10
+  (C) 두 번째 블록: 100
+ (B) 다시 첫 번째 블록: 10
+(A) 다시 함수 스코프: 1
+```
+
+-----
+
+##### 실행 컨텍스트(EC)의 LE 포인터 추적
+
+위 코드의 실행 흐름에 따라, `scopePointerDemo` 함수의 `Function Execution Context` (FEC)가 참조하는 `Lexical Environment` 포인터(이하 `EC.currentLE`)가 어떻게 변화하는지 단계별로 설명합니다.
+
+1.  **함수 진입 (LE-A 생성)**
+    `scopePointerDemo` 함수가 호출되면, 이 함수를 위한 `FEC`가 생성됩니다. '생성 단계'에서 \*\*`Function LE (A)`\*\*가 생성되고, `EC.currentLE` 포인터는 이 `LE (A)`를 참조합니다.
+
+      * `let x = 1;`이 실행되면, `EC.currentLE`가 가리키는 `LE (A)`의 환경 레코드에 `x: 1`이 기록됩니다.
+      * `console.log(x)`는 `LE (A)`의 `x`를 찾아 `1`을 출력합니다.
+
+2.  **첫 번째 `if` 블록 진입 (LE-B로 교체)**
+    엔진이 `if` 문의 `{`를 만나면, 이 블록을 위한 \*\*새로운 `Block LE (B)`\*\*를 생성합니다.
+
+      * `LE (B)`의 '외부 환경 참조(Outer Reference)'는 현재 `LE`였던 `LE (A)`로 설정됩니다.
+      * **[핵심]** `EC`는 `currentLE` 포인터의 참조를 `LE (A)`에서 **`LE (B)`로 교체(Swap)합니다**.
+      * `let x = 10;`이 실행되면, `EC.currentLE`가 가리키는 `LE (B)`에 `x: 10`이 기록됩니다.
+      * `console.log(x)`는 `LE (B)`의 `x`를 찾아 `10`을 출력합니다.
+
+3.  **두 번째 `if` 블록 진입 (LE-C로 교체)**
+    중첩된 `if` 문의 `{`를 만나면, \*\*새로운 `Block LE (C)`\*\*가 생성됩니다.
+
+      * `LE (C)`의 '외부 환경 참조'는 현재 `LE`였던 `LE (B)`로 설정됩니다.
+      * **[핵심]** `EC`는 `currentLE` 포인터의 참조를 `LE (B)`에서 **`LE (C)`로 다시 교체합니다**.
+      * `let x = 100;`이 실행되면, `EC.currentLE`가 가리키는 `LE (C)`에 `x: 100`이 기록됩니다.
+      * `console.log(x)`는 `LE (C)`의 `x`를 찾아 `100`을 출력합니다.
+
+4.  **두 번째 `}` 블록 탈출 (LE-B로 복원)**
+    엔진이 `}`를 만나 블록을 탈출하면, `EC`는 `currentLE` (즉, `LE (C)`)의 '외부 환경 참조' (즉, `LE (B)`)를 읽습니다.
+
+      * **[핵심]** **`EC.currentLE` 포인터를 `LE (B)`로 '복원(Restore)'합니다**.
+      * `LE (C)`는 참조가 해제되어 파괴됩니다 (가비지 컬렉션 대상).
+      * `console.log(x)`는 이제 `EC.currentLE`인 `LE (B)`의 `x`를 찾아 `10`을 출력합니다.
+
+5.  **첫 번째 `}` 블록 탈출 (LE-A로 복원)**
+    바깥쪽 `}`를 만나면, `EC`는 `currentLE` (즉, `LE (B)`)의 '외부 환경 참조' (즉, `LE (A)`)를 읽습니다.
+
+      * **[핵심]** **`EC.currentLE` 포인터를 `LE (A)`로 '복원'합니다**.
+      * `LE (B)`는 파괴됩니다.
+      * `console.log(x)`는 이제 `EC.currentLE`인 `LE (A)`의 `x`를 찾아 `1`을 출력합니다.
+
+##### 결론
+
+이처럼 실행 컨텍스트(EC)가 코드 블록에 진입할 때마다 `LE` 포인터를 \*\*'교체'\*\*하고, 블록을 벗어날 때마다 `LE`의 '외부 환경 참조'를 통해 상위 `LE`로 \*\*'복원'\*\*하는 이 동적 메커니즘이 바로 `let`과 `const`가 블록 레벨 스코프를 따르도록 하는 물리적인 실체입니다.
+</Collapse>
+
+2.  **`VariableEnvironment` (VE):**
+    - **오직 `var` 선언**만을 저장합니다.
+    - EC가 생성될 때 한 번 만들어지고, `{}` 블록을 만나도 **절대 변하지 않습니다.** (이것이 `var`가 함수 스코프를 갖는 이유)
+3.  **`ThisBinding`:**
+    - 이 EC 내부에서 `this` 키워드가 가리킬 객체의 **참조(주소)**를 저장합니다.
+
+#### 🏭 3가지 종류
+
+실무에서 알아야 할 EC는 3가지입니다.
+
+1.  **`GEC` (Global Execution Context):**
+    - JS 엔진이 코드를 실행하기 위해 맨 처음 생성하는 기반 컨텍스트. (콜 스택의 맨 바닥)
+    - `this` 바인딩: 브라우저에서는 `window`, Node.js(CJS)에서는 `global` 객체.
+2.  **`FEC` (Function Execution Context):**
+    - **함수가 '호출'될 때마다** 매번 새롭게 생성됩니다.
+    - `this` 바인딩: "어떻게 호출되었는가"에 따라 (Part 6의) 4가지 규칙 중 하나가 적용됩니다.
+3.  **`MEC` (Module Execution Context):**
+    - `import/export`를 사용하는 **ES 모듈 파일**을 실행할 때 생성됩니다.
+    - `this` 바인딩: **`undefined`**로 고정됩니다.
+    - (React 컴포넌트 파일 최상단에서 `this`를 찍으면 `undefined`가 나오는 이유입니다.)
+
+---
+
+### 4. 호이스팅과 Function Object의 탄생
+
+호이스팅은 "선언을 끌어올린다"는 비유가 아니라, **"EC의 생성 단계(Creation Phase)에서 선언부를 미리 처리한다"**는 엔진의 동작 원리입니다.
+
+함수가 호출되면, 코드를 한 줄씩 실행하는 **'실행 단계(Execution Phase)'** 전에, 함수 전체를 스캔하는 **'생성 단계(Creation Phase)'**가 먼저 일어납니다.
+
+| 키워드         | 저장소 (어디에)                  | '생성 단계' 초기화 (어떻게)      | TDZ (결과)   |
+| :------------- | :------------------------------- | :------------------------------- | :----------- |
+| **`var`**      | **VE** (VariableEnvironment)     | **`undefined`**                  | **없음 (X)** |
+| **`let`**      | **LE** (LexicalEnvironment)      | `<uninitialized>` (초기화 안 됨) | **있음 (O)** |
+| **`const`**    | **LE** (LexicalEnvironment)      | `<uninitialized>` (초기화 안 됨) | **있음 (O)** |
+| **`function`** | **LE** (LexicalEnvironment) [^1] | **'함수 객체' (즉시)**           | **없음 (X)** |
+
+[^1]: (정확히는 `var`처럼 VE에 등록되어 함수 스코프를 따르지만, ES6부터 블록 스코프에서도 선언될 수 있게 되면서 LE의 규칙도 함께 적용되는 복잡성이 있습니다. 간단하게 `LE`에 등록되고 '즉시 초기화된다'고 이해하는 것이 가장 실용적입니다.)
+
+- **`var`:** 생성 단계에서 `VE`에 등록되고 `undefined`로 즉시 초기화됩니다. 그래서 선언 전에 호출해도 에러가 안 나고 `undefined`가 나옵니다.
+- **`let/const`:** 생성 단계에서 `LE`에 `<uninitialized>` 상태로 등록됩니다. 이 "스코프 시작점 ~ 실제 선언 라인"까지의 '접근 금지 구간'을 **TDZ (Temporal Dead Zone)**라고 부릅니다. 이 구간에서 접근 시 `ReferenceError`가 발생합니다.
+
+- **`function` 선언 (⭐핵심⭐):**
+  1.  `function myFunc() {...}` 같은 함수 선언문(`function` 키워드로 시작)을 만납니다.
+  2.  엔진은 '생성 단계'에서 이 함수를 **즉시 JIT 컴파일**하여, **'바이트코드(Bytecode)'**를 포함한 **`Function Object` (함수 객체)**를 **힙(Heap)**에 생성합니다.
+  3.  그리고 `LE`의 `Environment Record`에 `myFunc`라는 Key를 등록하고, 그 Value로 방금 힙에 생성한 **Function Object의 '메모리 주소(참조)'**를 즉시 할당합니다.
+  4.  **결과:** `let/const`와 달리 **즉시 '완성된 값(주소)'**으로 초기화되므로 **TDZ가 없습니다.** 따라서, 코드 실행이 시작되자마자 스코프 어디에서든 해당 함수를 호출할 수 있습니다.
+
+---
+
+### 5. JIT (Just-In-Time) 컴파일이란?
+
+Part 4의 `Function Object` 생성 메커니즘이 바로 JS가 **JIT 컴파일 언어**라고 불리는 이유입니다.
+
+- **인터프리터(Interpreter)가 아닌 이유:**
+  만약 순수한 인터프리터였다면, 'Creation Phase' 같은 것은 없었을 겁니다. 코드를 한 줄씩 순서대로 읽고 바로 실행(해석)했을 것입니다. `function` 선언을 미리 처리하고 호이스팅을 하는 것 자체가 '실행 전 스캔' 즉, 컴파일과 유사한 단계가 있음을 의미합니다.
+
+- **전통적인 컴파일러(Compiler)가 아닌 이유:**
+  전통적인 컴파일러(C++ 등)는 실행 _전에_ 코드 전체를 기계어로 _모두_ 변역합니다. 하지만 JS는 그렇지 않습니다.
+
+- **JIT (Just-In-Time) 컴파일러인 이유:**
+  JS 엔진은 이 둘을 섞습니다. 코드를 실행하다가 **`function MyComponent() {...}`** 정의를 만나는 순간(Creation Phase), 엔진은 그 코드를 '나중에' 실행하기 위해 텍스트(string)로 저장하는 게 아니라, **"지금 당장(Just-In-Time)"** 컴파일해서 최적화된 **'바이트코드(Bytecode)'**로 만들어 힙(Heap)에 보관합니다.
+  - `Just-In-Time`: "실행이 필요한 바로 그 시점" (혹은 그 직전)에
+  - `Compile`: 코드를 '컴파일' (바이트코드로 번역)한다.
+
+---
+
+### 6. 핵심 메커니즘 2 - `this` 바인딩
+
+`this`는 "함수의 '재사용성'을 위해, 함수에게 '실행 맥락(주인공 객체)'을 알려주는 **암시적 매개변수**"입니다.
+
+#### 🎯 EC 종류별 `this` (요약)
+
+- `GEC`: `window` (브라우저) 또는 `global` (Node CJS)
+- `MEC`: `undefined`
+
+#### 🎯 FEC의 4가지 `this` 결정 규칙 (우선순위 순)
+
+`FEC`의 `this`는 함수가 "어떻게 호출"되었는지에 따라 동적으로 결정됩니다.
+
+1.  **`new` 바인딩 (생성자 호출):**
+    - `new Person()`처럼 `new`로 호출하면, `this`는 **새로 생성되는 객체 인스턴스**가 됩니다.
+2.  **명시적 바인딩 (Explicit Binding):**
+    - `myFunc.call(obj)`, `myFunc.apply(obj)`, `myFunc.bind(obj)`
+    - `call`, `apply`, `bind`의 **첫 번째 인자로 넘겨준 객체**가 `this`로 강제 지정됩니다.
+3.  **암시적 바인딩 (Implicit Binding / 메소드 호출):**
+    - `person.sayName()`처럼 **'점(.)'**을 찍어 객체의 메소드로 호출하면, `this`는 **그 '점(.)' 앞의 객체** (`person`)가 됩니다.
+4.  **기본 바인딩 (Default Binding):**
+    - 위 3가지가 아닌, `sayName()`처럼 '그냥' 호출되면 `this`는 기본값이 됩니다.
+    - **Strict Mode (엄격 모드) / MEC:** `undefined`
+    - **Non-Strict Mode (일반 모드):** `window` (전역 객체)
+
+> **[함정] 콜백 함수와 `this`**
+> `setTimeout(person.sayName, 100)`처럼 콜백으로 함수를 넘기면, `person` 객체와 분리되어 '함수 자체'만 넘어갑니다.
+> `setTimeout`은 나중에 이 함수를 '그냥' 호출(규칙 4)하므로 `this`는 `window`가 됩니다. (이것이 `this` 관련 버그의 주원인입니다.)
+
+#### ⚠️ 예외: 화살표 함수 (`=>`)
+
+화살표 함수는 위 4가지 규칙을 **모두 무시**합니다.
+
+- 화살표 함수의 `FEC`는 **`ThisBinding` 구성요소 자체가 아예 생성되지 않습니다.**
+- 화살표 함수 내부에서 `this`를 사용하면, `this`는 '특별한 키워드'가 아닌 **'일반 변수'**처럼 취급됩니다.
+- 엔진은 `this`를 찾기 위해 **스코프 체인(Outer Reference)을 타고 부모 스코프로 올라갑니다.**
+- 결과적으로 화살표 함수의 `this`는 **"이 함수가 _선언(정의)될_ 당시의 외부(부모) 스코프"**의 `this`를 그대로 물려받습니다. (이를 **Lexical `this`**라고 합니다.)
+
+---
+
+### 7. 핵심 메커니즘 3 - 클로저 (Closure)
+
+클로저는 `this`와 함께 JS의 가장 중요한 핵심 개념입니다.
+
+#### 📜 정의
+
+- **클로저(Closure):** "자신이 **정의(선언)된** 시점의 렉시컬 환경(LE)을 **기억(참조)**하는 함수"
+- **현상:** 이로 인해, 외부 함수가 실행을 마치고 콜 스택에서 사라진 후에도, 그 외부 함수의 변수에 계속 접근할 수 있는 현상.
+
+#### ⚙️ 작동 원리 (모든 개념의 총집합)
+
+1.  **'탄생' (함수 정의 시점):**
+    - `outer` 함수 안에서 `inner` 함수가 **정의**될 때, Part 4에서 배운 대로 `inner`의 **`Function Object` (함수 객체)**가 **힙(Heap)**에 생성됩니다.
+2.  **'출생지 기록' (`[[Environment]]`):**
+    - 이 `Function Object`는 `[[Environment]]` (또는 `[[Scope]]`)라는 숨겨진 내부 슬롯(포인터)을 가집니다.
+    - 이 슬롯에는 `inner` 함수가 '탄생'한 곳, 즉 **`outer` 함수의 `LE`를 가리키는 참조(주소)**가 '출생 증명서'처럼 저장됩니다.
+3.  **'Slow Path' 발동:**
+    - V8 엔진은 `inner`가 `outer`의 변수(e.g., `count`)를 참조하는 것을 감지합니다.
+    - 엔진은 `count` 변수를 스택(Fast Path)이 아닌, **힙(Heap)의 `Context` 객체** (Slow Path, Part 2 참고)에 생성하여 `outer`의 `LE`를 구현합니다.
+4.  **`outer` 함수 종료:**
+    - `outer` 함수가 `inner` 함수를 `return`하고 콜 스택에서 pop되어 사라집니다.
+    - `outer`의 스택 프레임은 사라졌지만, `outer`의 `LE` (즉, 힙에 있는 `Context` 객체)는 **사라지지 않습니다.**
+    - **이유:** `return`된 `inner` 함수 객체가 `[[Environment]]` 슬롯으로 여전히 `Context` 객체를 **'참조'**하고 있기 때문에, 가비지 컬렉터(GC)가 수거해가지 않습니다.
+5.  **`inner` 함수 호출 (나중):**
+    - `inner` 함수가 호출되어 `FEC`가 생성됩니다.
+    - `inner`의 `FEC`는 자신의 `LE`를 만들고, 'Outer Environment Reference'를 설정해야 합니다.
+    - 이때, `inner` 함수 객체의 `[[Environment]]` 슬롯을 확인하여 "아, 나의 부모는 힙에 있는 저 `Context` 객체구나!"라고 인지하고 스코프 체인을 연결합니다.
+    - 따라서 `inner`는 힙에 살아있는 `count` 변수에 접근할 수 있습니다.
+
+---
+
+### 8. 핵심 메커니즘 4 - 모듈 시스템 (ESM)
+
+현대 JS(React)는 '모듈' 기반으로 동작합니다.
+
+#### 📦 Node.js (듀얼 시스템)
+
+- `package.json`에 `"type": "module"`이 있거나 `.mjs` 확장자: **ESM** (ES 모듈) 방식
+- 기본값 또는 `.cjs` 확장자: **CommonJS (CJS)** 방식
+- **CJS의 `this`:** Node.js는 CJS 파일을 실행할 때 `(function(exports, require, module, __filename, __dirname) { ... })`라는 **래퍼(Wrapper) 함수**로 감쌉니다.
+  - 그리고 `this`를 `module.exports` (초기값: `{}`)로 바인딩합니다. (이것이 Node CJS 파일 최상단 `this`가 `{}`인 이유)
+
+#### 🖥️ 브라우저 (듀얼 시스템)
+
+- `<script type="module" ...>`: **ESM** 방식 (Module Scope, 최상위 `this`는 `undefined`)
+- `<script ...>` (기본값): **Classic Script** 방식 (Global Scope, 최상위 `this`는 `window`)
+- **번들러(Webpack)의 역할:** 개발 시에는 ESM (`import/export`) 문법을 사용하지만,
+  - `npm run build`를 하면 Webpack이 모든 `import`를 분석하여 **하나의 거대한 'Classic Script'** (`bundle.js`)로 합쳐줍니다.
+  - 이 파일은 `import` 구문이 없으므로 `type="module"` 없이도 *구형 브라우저에서 잘 동작*합니다.
+
+#### 🔗 `import/export`와 '라이브 바인딩 (Live Binding)'
+
+`import`는 값을 복사하는 것이 아닙니다.
+
+1.  `A.js`가 `export let count = 10;`을 합니다.
+    - `count`는 `A.js`의 `MEC`가 관리하는 `LE` (힙 `Context`)에 `10`이라는 값으로 저장됩니다 (주소: `0xABC`).
+2.  `B.js`가 `import { count } from './A.js';`를 합니다.
+    - `B.js`의 `LE`에 `count`라는 **새로운 바인딩(슬롯)**이 생깁니다.
+    - 이 슬롯에는 `10`이 복사되는 것이 아니라, `A.js`에 있는 `count`의 **실제 메모리 주소(`0xABC`)를 가리키는 포인터(참조)**가 저장됩니다.
+    - 이 포인터는 **읽기 전용(read-only)**입니다. (그래서 `import`한 변수에 재할당이 안 됨)
+3.  **"라이브"의 의미:** 나중에 `A.js`가 `count = 20;`으로 값을 변경하면(`0xABC` 슬롯의 값이 바뀜), `B.js`는 `0xABC`를 바라보고 있으므로 **변경된 값 `20`을 실시간으로** 보게 됩니다.
+4.  **`as`의 의미:** `import { count as myCount }`는 "내(`B.js`) `LE`에 `myCount`라는 키를 만들고, 값은 `0xABC` 포인터로 해줘"라는 뜻입니다. 'Key'는 별명일 뿐, 'Value'는 원본의 주소입니다.
+
+#### 🌳 트리 쉐이킹 (Tree Shaking)
+
+- `import/export`는 **'정적(Static)'**입니다. 코드를 실행하지 않고(정적 분석), '읽는 것'만으로도 누가 뭘 가져다 쓰는지 100% 파악할 수 있습니다.
+- Webpack 같은 번들러는 이 정적 분석을 통해, `export`는 되었지만 앱 전체에서 단 한 번도 `import` 되지 않은 '죽은 코드(dead code)'를 식별하고, 최종 번들 파일에서 제거해버립니다.
+
+---
+
+### 9. 기타 주요 용어 정리
+
+- **스냅샷 (Snapshot):**
+  - `Snap` (찰칵) + `Shot` (촬영) = "순간 촬영 사진".
+  - Git `commit`이나 VM/DB 백업 등, **"지속적으로 변경되는 복잡한 시스템"**의 **"특정 시점의 상태"**를 통째로 '얼려서' 저장하는 개념을 의미합니다.
+  - Git은 '변경분(Diff)'이 아닌 '스냅샷'을 저장하기에 브랜치 전환이 빠릅니다.
+- **정적 (Static) vs 동적 (Dynamic):**
+  - **정적 (Static) / 컴파일 타임 / 빌드 타임:**
+    - **언제:** 앱이 **"실행되기 전 (Before Runtime)"**.
+    - **무엇을:** 코드 **'텍스트(Text)'** 그 자체.
+    - **예시:** Webpack의 트리 쉐이킹, TypeScript의 타입 체크. 코드를 실행하지 않고 '읽기'만 해서 최적화하거나 에러를 잡습니다.
+  - **동적 (Dynamic) / 런타임:**
+    - **언제:** 앱이 **"실행되는 중 (During Runtime)"**.
+    - **무엇을:** 메모리에 올라간 실제 '데이터'와 '객체'.
+    - **예시:** `this` 바인딩. 코드가 '실행'되어 함수가 '호출'되는 그 순간의 '맥락'에 따라 `this`가 동적으로 결정됩니다.
+
+---
+
+### 10. [Claude가 보완해준 Version Link](https://gist.github.com/Yonghwan-Song/9e0811f8b93016025e39b21d7dfc98de)

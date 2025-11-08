@@ -55,7 +55,9 @@ const config: Config = {
   themeConfig: {
     tableOfContents: {
       minHeadingLevel: 2,
-      maxHeadingLevel: 6,
+      // maxHeadingLevel: 6,
+      // maxHeadingLevel: 4, 뭐야 작동 안되는듯? // TODO:
+      maxHeadingLevel: 3,
     },
     // Replace with your project's social card
     image: "img/docusaurus-social-card.jpg",
