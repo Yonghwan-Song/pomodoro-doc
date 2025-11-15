@@ -227,7 +227,7 @@ BC.addEventListener("message", async (ev) => {
       // }[]
       pubsub.publish(evName, payload); // <--------------------------------------------
       break;
-    
+
     // ...
 
     default:
@@ -340,13 +340,13 @@ BC.addEventListener("message", async (ev) => {
 ```
 </Collapse>
 
-
-
 #### Sequence Diagram
 
 [원본 링크](https://github.com/Yonghwan-Song/pomodoro/assets/72689705/c146532e-f4c5-45c5-a16f-c74333aeb3f3)
 ![스탯으로 이동후 세션 종료](./img/prob-solving-B-seq.png)
 
+
+### [비판적 질문들](./questions.mdx#한-세션이-진행-중일-때pomo-or-break-관계없이-다른-페이지들을-자유롭게-방문할-수-있도록-하는-것)
 
 ## **[인터넷 연결이 끊길 때에도 핵심 기능 사용할 수 있게 하기](https://pomodoro-doc.vercel.app/features#network-disconnection-handling)**
 
@@ -375,7 +375,7 @@ BC.addEventListener("message", async (ev) => {
 
 #### 어려웠던 점
 
-category object를 식별하는 방식이 name과 userEmail의 조합의 유일성을 이용하는 것인데, 
+category object를 식별하는 방식이 name과 userEmail의 조합의 유일성을 이용하는 것인데,
 
 이름을 바꾸는 patch request때문에 이것을 이용할 수 없었습니다.
 
@@ -383,7 +383,7 @@ category object를 식별하는 방식이 name과 userEmail의 조합의 유일�
 
 - 흐름
   - interceptor에서 `/categories`로 보내지는 patch는 interceptor에서 바로 `errController`에 등록하지 않고 error를 throw
-  - axios patch를 호출한 함수에서 그 error를 catch한 후 
+  - axios patch를 호출한 함수에서 그 error를 catch한 후
   - _uuid를 넣어서 `errController`에 등록.
 
 #### Service Worker에서 request 보내기
@@ -392,6 +392,8 @@ category object를 식별하는 방식이 name과 userEmail의 조합의 유일�
 
 - Error가 TypError이면 `BroadcastChannel` API를 이용해서 main thread에 데이터를 보냅니다.
 - event handler가 그 데이터를 받아서 `errController`에 저장합니다.
+
+### [비판적 질문들](./questions.mdx#인터넷-연결이-끊길-때에도-핵심-기능-사용할-수-있게-하기)
 
 ## **Horizontal Timeline 만들기**
 
@@ -428,7 +430,7 @@ After
 
 - 사용하게 된 계기
   - media query를 사용하기 위해 inline style을 이용한 Timeline component를 styled component로 바꿨습니다.
-  - 그런데 기존의 drag와 wheel event handler들이 ref를 이용해 Timeline element의 style object에 직접 접근하는데, 관련 코드들이 Styled Component로 바꿨을 때 잘 작동하지 않았습니다. 
+  - 그런데 기존의 drag와 wheel event handler들이 ref를 이용해 Timeline element의 style object에 직접 접근하는데, 관련 코드들이 Styled Component로 바꿨을 때 잘 작동하지 않았습니다.
   - 디버깅하기에는 너무 복잡해 보여서 기존의 inline 스타일을 유지하면서 CSS media query 없이 responsive design을 적용할 방법을 찾아봤습니다.
 
 - 전반적인 원리
@@ -529,6 +531,9 @@ After
 <br />
 ![after](https://github.com/Yonghwan-Song/pomodoro/assets/72689705/8640f5e8-3024-4ff0-9535-ea9413f94e54)
 
+### [비판적 질문들](./questions.mdx#horizontal-timeline-만들기)
+
+
 {/* #### Elastic scroll에 의한 bouncing effect 제외시키기
 
 현상 및 원인
@@ -540,7 +545,7 @@ After
 
 -  */}
 {/* - media query를 사용하기 위해 inline style을 이용한 Timeline component를 styled component로 바꿨습니다.
-- 그런데 기존의 drag와 wheel event handler들이 ref를 이용해 Timeline element의 style object에 직접 접근하는데, 관련 코드들이 Styled Component로 바꿨을 때 잘 작동하지 않았습니다. 
+- 그런데 기존의 drag와 wheel event handler들이 ref를 이용해 Timeline element의 style object에 직접 접근하는데, 관련 코드들이 Styled Component로 바꿨을 때 잘 작동하지 않았습니다.
 - 디버깅하기에는 너무 복잡해 보여서 기존의 inline 스타일을 유지하면서 CSS media query 없이 responsive design을 적용할 방법을 찾아봤습니다.
 - 다행히도 MediaQueryList Web API가 존재해서 그것들을 사용했습니다.
   - 원하는 range에 해당하는 MediaQueryList object 정의
