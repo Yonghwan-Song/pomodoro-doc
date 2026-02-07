@@ -1,6 +1,8 @@
 ---
 sidebar_position: 9
 ---
+import { Highlight } from "../src/components/Highlight";
+import Collapse from "../src/components/Collapse"
 
 # Miscellaneous
 
@@ -49,72 +51,84 @@ sidebar_position: 9
 
 
 ---
-
 ## Service Worker의 수명 주기와 Web API (setInterval)
 
 ### 1. 문제의 배경: 역설(Paradox)
 
-`setInterval`과 같은 Web API는 `Renderer` Process나 `Service Worker` Process의 메인 스레드에서 직접 실행되지 않고, 브라우저의 다른 스레드나 **`Browser` Process**에게 "위임"됩니다.
+`setInterval`과 같은 Web API는 JS 메인 스레드의 콜 스택에서 직접 시간을 세지 않고, 브라우저 내부의 별도 메커니즘(타이머 관리 시스템)에게 **"위임"** 됩니다. 이 타이머 관리 시스템은 Renderer Process 내의 별도 스레드이거나 Browser Process의 일부일 수 있으며, 정확한 구현은 브라우저마다 다릅니다.
 
 여기서 다음과 같은 논리적인 질문이 생깁니다.
 
-> "Service Worker(SW) Process가 종료되더라도, 타이머를 위임받은 Browser Process는 살아있습니다. 그렇다면 왜 `setInterval`이 멈추는 것입니까? 타이머는 계속 돌고, 나중에 SW가 다시 살아났을 때 밀린 콜백을 처리해야 하는 것 아닙니까?"
+> "Service Worker(SW)의 실행 컨텍스트가 종료되더라도, 타이머를 위임받은 브라우저 내부 시스템은 살아있습니다. 그렇다면 왜 `setInterval`이 멈추는 것입니까? 타이머는 계속 돌고, 나중에 SW가 다시 살아났을 때 밀린 콜백을 처리해야 하는 것 아닙니까?"
 
-이 질문의 답은 **Task Queue(작업 큐)가 작동하는 방식**에 있습니다.
+이 질문의 답은 **Task Queue(작업 큐)** 가 작동하는 방식에 있습니다.
 
 ---
 
-### 2. 핵심 원리: Task Queue는 프로세스에 종속적입니다.
+### 2. 핵심 원리: Task Queue는 실행 컨텍스트에 종속적입니다.
 
-`Task Queue`(이벤트 큐)는 브라우저 전체에 하나만 존재하는 "공용 큐"가 아닙니다.
+Task Queue(이벤트 큐)는 브라우저 전체에 하나만 존재하는 "공용 큐"가 아닙니다.
 
-- **`Renderer` Process (탭 1)**는 **"탭 1 전용 Task Queue"**를 가집니다.
-- **`Renderer` Process (탭 2)**는 **"탭 2 전용 Task Queue"**를 가집니다.
-- **`Service Worker` Process**는 **"SW 전용 Task Queue"**를 가집니다.
+- **탭 1의 Renderer Process** 는 **"탭 1 전용 Task Queue"** 를 가집니다.
+- **탭 2의 Renderer Process** 는 **"탭 2 전용 Task Queue"** 를 가집니다.
+- **Service Worker의 실행 컨텍스트** 는 **"SW 전용 Task Queue"** 를 가집니다.
 
-Web API에게 작업을 위임한다는 것은 "그냥 실행해"가 아니라, "**작업이 끝나면 *나의 전용 Task Queue*에 콜백을 넣어줘**"라는 의미입니다.
+> **참고: Service Worker는 어디에서 실행되는가?**
+>
+> Chromium 기준으로 Service Worker는 반드시 독립적인 프로세스에서 실행되는 것이 아닙니다.
+> - **독립 프로세스**: Site Isolation 정책 등에 의해 별도의 Renderer Process를 할당받아 실행될 수 있습니다.
+> - **기존 Renderer Process 내 별도 스레드** : 같은 origin의 Renderer Process 안에서 Worker 스레드로 실행될 수도 있습니다.
+>
+> 어느 경우든, Service Worker는 자신만의 **실행 컨텍스트(Call Stack, Heap, Task Queue)** 를 가지며, 이 컨텍스트가 종료되면 모든 것이 함께 사라집니다.
+> 따라서 이 문서에서는 프로세스/스레드 구분 대신 **"SW 실행 컨텍스트"** 라는 표현을 사용합니다.
+
+Web API에게 작업을 위임한다는 것은 "그냥 실행해"가 아니라, **"작업이 끝나면 나의 전용 Task Queue에 콜백을 넣어줘"** 라는 의미입니다.
 
 ---
 
 ### 3. `setInterval`이 멈추는 정확한 순서
 
-1.  **[SW Process]** `setInterval(myCallback, 1000)`을 호출합니다.
+1. **[SW 실행 컨텍스트]** `setInterval(myCallback, 1000)`을 호출합니다.
+   - 이것은 브라우저의 타이머 관리 시스템에게 보내는 요청입니다.
+   - 요청 내용: *"1초마다 `myCallback`을 SW 전용 Task Queue에 배달해주세요."*
 
-    - 이것은 `Browser` Process(중앙 타이머 관리자)에게 보내는 요청입니다.
-    - **요청 내용:** "1초마다 `myCallback`을 ***SW 전용 Task Queue*에** 배달해주세요."
+2. **[브라우저 타이머 시스템]** "알겠습니다." (타이머 시작)
 
-2.  **[Browser Process]** "알겠습니다." (타이머 시작)
+3. **[SW 실행 컨텍스트]** 현재 처리 중이던 이벤트(예: `install` 또는 `activate`)를 완료하고 **"유휴(Idle)"** 상태가 됩니다.
 
-3.  **[SW Process]** 현재 처리 중이던 이벤트(예: `install` 또는 `activate`)를 완료하고 **"유휴(Idle)"** 상태가 됩니다.
+4. **[Browser Process]** <Highlight color="#25c2a0">Service Worker는 리소스 절약을 위해 "이벤트 기반"으로 작동하도록 설계되었습니다.</Highlight> Browser Process는 SW가 유휴 상태인 것을 확인하고, **SW의 실행 컨텍스트를 강제로 종료(Terminate)** 시킵니다.
 
-4.  **[Browser Process]** `Service Worker`는 리소스 절약을 위해 "이벤트 기반"으로 작동하도록 설계되었습니다. `Browser` Process는 SW가 유휴 상태인 것을 확인하고, **`Service Worker` Process를 강제로 종료(Kill)시킵니다.**
+5. **[SW 실행 컨텍스트]** 실행 컨텍스트가 종료되면서, 이 컨텍스트에 속해있던 **Call Stack, Heap, 그리고 "SW 전용 Task Queue"가 모두 메모리에서 사라집니다.**
 
-5.  **[SW Process]** 프로세스가 종료되면서, 이 프로세스에 속해있던 **Call Stack, Heap, 그리고 *"SW 전용 Task Queue"*가 모두 메모리에서 사라집니다.**
+6. **[브라우저 타이머 시스템]** (1초 뒤) "약속대로 `myCallback`을 SW 전용 Task Queue에 배달해야지."
 
-6.  **[Browser Process]** (1초 뒤) "약속대로 `myCallback`을 ***SW 전용 Task Queue*에** 배달해야지."
+7. **[브라우저 타이머 시스템]** "...어? 배달할 주소(SW 전용 Task Queue)가 존재하지 않습니다."
 
-7.  **[Browser Process]** "...어? 배달할 주소(SW 전용 Task Queue)가 **존재하지 않습니다.**"
+8. **[브라우저 타이머 시스템]** 배달 대상을 잃은 타이머는 작업을 중단하거나 취소됩니다.
 
-8.  **[Browser Process]** 배달 대상을 잃은 타이머는 작업을 중단하거나 취소됩니다.
+---
 
-> #### 🍕 피자 배달 비유
->
-> `setInterval`은 10분마다 피자(`myCallback`)를 **"A사무실"**(`SW Process`)로 배달해달라고 주문하는 것과 같습니다.
->
-> "A사무실"이 갑자기 폐업해서 사라졌습니다.
->
-> 피자 배달부(`Browser` Process의 타이머)는 10분 뒤 "A사무실"에 도착했지만, 사무실 자체가 사라진 것을 확인합니다. 배달부는 피자를 버리고(작업 취소), 더 이상 "A사무실"로 배달을 오지 않습니다.
+#### 🍕 피자 배달 비유
 
-**결론:** `setInterval`은 `Service Worker`의 수명을 연장해주지 못합니다. Web API(타이머)가 멈추는 것이 아니라, 콜백을 **전달받을 대상(Task Queue)**이 프로세스 종료와 함께 **사라지기(demolished)** 때문에 멈추는 것입니다.
+- `setInterval`은 10분마다 피자(`myCallback`)를 **"A사무실"** (SW 실행 컨텍스트)로 배달해달라고 주문하는 것과 같습니다.
+- "A사무실"이 갑자기 폐업해서 사라졌습니다.
+- 피자 배달부(브라우저의 타이머 시스템)는 10분 뒤 "A사무실"에 도착했지만, 사무실 자체가 사라진 것을 확인합니다. 배달부는 피자를 버리고(작업 취소), 더 이상 "A사무실"로 배달을 오지 않습니다.
+
+---
+
+**결론:** `setInterval`은 Service Worker의 수명을 연장해주지 못합니다. 브라우저의 타이머 시스템이 멈추는 것이 아니라, 콜백을 **전달받을 대상(Task Queue)** 이 실행 컨텍스트 종료와 함께 사라지기 때문에 멈추는 것입니다.
 
 ---
 
 ### 4. 핵심 출처 (Sources)
 
-- **1. Service Worker의 수명 주기 (MDN):**
-  - [https://developer.mozilla.org/ko/docs/Web/API/Service_Worker_API/Service_worker_concepts](https://developer.mozilla.org/ko/docs/Web/API/Service_Worker_API/Service_worker_concepts)
-  - **내용:** 이 문서, 특히 '수명 주기(Lifecycle)' 섹션에서는 서비스 워커가 이벤트를 처리하지 않을 때 **"유휴(idle)" 상태가 되고 결국 "종료(terminated)"**된다고 명시하고 있습니다. `setInterval`은 이 수명을 연장시키는 "이벤트"로 간주되지 않습니다.
+1. **Service Worker의 수명 주기 (MDN):**
+   - https://www.w3.org/TR/service-workers/#service-worker-lifetime
+   - 내용: 이 문서, 특히 '수명 주기(Lifecycle)' 섹션에서는 서비스 워커가 이벤트를 처리하지 않을 때 **"유휴(idle)" 상태가 되고 결국 "종료(terminated)"** 된다고 명시하고 있습니다.
+     `setInterval`은 이 수명을 연장시키는 "이벤트"로 간주되지 않습니다.
 
-- **2. 이벤트 루프와 태스크 큐 (MDN):**
-  - [https://developer.mozilla.org/ko/docs/Web/JavaScript/EventLoop](https://developer.mozilla.org/ko/docs/Web/JavaScript/EventLoop)
-  - **내용:** 이 문서는 Web API(예: `setInterval`)의 콜백이 어떻게 **"태스크 큐(Task Queue)"**를 통해 처리되는지 설명합니다. 우리가 논의한 "배달 주소"가 바로 이 큐이며, 이 큐는 프로세스와 생명 주기를 함께합니다.
+2. **이벤트 루프와 태스크 큐 (MDN):**
+   - https://developer.mozilla.org/docs/Web/JavaScript/EventLoop
+   - 내용: 이 문서는 Web API(예: `setInterval`)의 콜백이 어떻게 **"태스크 큐(Task Queue)"** 를 통해 처리되는지 설명합니다.
+     우리가 논의한 "배달 주소"가 바로 이 큐이며, 이 큐는 실행 컨텍스트와 생명 주기를 함께합니다.
+
