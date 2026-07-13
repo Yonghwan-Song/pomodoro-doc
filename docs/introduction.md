@@ -13,7 +13,6 @@ slug: /
 - [Pomodoro technique](https://ko.wikipedia.org/wiki/%ED%8F%AC%EB%AA%A8%EB%8F%84%EB%A1%9C_%EA%B8%B0%EB%B2%95)을 기반으로 하는 공부 & 작업 시간 측정 App입니다.
 - 한 사이클의 작업 시간을 여러 개의 작업 세션들과 이어지는 짧은 휴식 그리고 마지막 긴 휴식으로 나누어 높은 집중력을 유지하는 데 도움을 줍니다.
   (작업 시간을 pomodoro 또는 pomo라고 부릅니다).
-
   - `One cycle == (pomo + short break) * number of pomos + long break`
 
 - 작업 시간에 대한 통계를 제공하여 사용자의 생산성을 파악하는데 도움을 주고 다양한 Feedback기능을 통해 동기부여가 될 수 있도록 도와줍니다.
@@ -69,6 +68,10 @@ slug: /
 
 - Styled Components, React Inline Style
 
+#### WebRTC
+
+- [mediasoup-client](https://www.npmjs.com/package/mediasoup-client)
+
 #### Etc
 
 - [Recharts](https://recharts.org/)
@@ -85,6 +88,8 @@ slug: /
 - NestJS, Express
 - [Firebase Admin](https://www.npmjs.com/package/firebase-admin)
 - MongoDB Atlas, Mongoose, @nest/mongoose
+- WebRTC
+  - [mediasoup](https://www.npmjs.com/package/mediasoup)
 
 ### 호스팅
 
@@ -107,6 +112,7 @@ slug: /
 - [목표설정 및 달성에 관한 통계](https://pomodoro-doc.vercel.app/features#goal)
 - [인터넷 연결이 불안정한 경우에도 주요 기능을 사용할 수 있도록 하기](https://pomodoro-doc.vercel.app/features#network-disconnection-handling)
 - [Todoist Integration Option 제공](https://pomodoro-doc.vercel.app/features#todoist-integration)
+- [화면 공유 스터디룸](https://pomodoro-doc.vercel.app/features#group-study)
 
 ## 아키텍처 (Architecture)
 
@@ -134,19 +140,15 @@ flowchart TD
         Todoist("fa:fa-check-square Todoist<br>(업무 관리)")
     end
 
-    %% --- 관계 정의 (양방향 관계 수정) ---
+    %% --- 관계 정의 ---
     User -- "액션 수행 (클릭, 입력 등)" --> App
     App -- "UI 업데이트 및 피드백" --> User
+    User -- "영상 스트림 (WebRTC/ICE via SFU)" --> App
+    App -- "미디어 라우팅" --> User
 
-    App -- "1단계: 로그인 요청" --> Google
-    Google -- "2단계: ID 토큰 전달" --> App
-
-    App -- "3단계: 토큰 검증 요청" --> Firebase
-    Firebase -- "4단계: 검증 결과 응답" --> App
-
-
-    App -- "Task 데이터 요청" --> Todoist
-    Todoist -- "Task 데이터 응답" --> App
+    App -- "사용자 인증" --> Google
+    App -- "토큰 검증" --> Firebase
+    App -- "Task 데이터 동기화" --> Todoist
 
     %% --- 스타일 꾸미기 ---
     style User fill:#2a9d8f,stroke:#264653,color:#fff
@@ -154,6 +156,7 @@ flowchart TD
     style Google fill:#e76f51,stroke:#f4a261,color:#fff
     style Firebase fill:#e76f51,stroke:#f4a261,color:#fff
     style Todoist fill:#e76f51,stroke:#f4a261,color:#fff
+    style STUN fill:#e76f51,stroke:#f4a261,color:#fff
 ```
 
 ### Container Diagram (C2)
@@ -162,41 +165,30 @@ flowchart TD
 
 ```mermaid
 flowchart TD
-    %% --- 노드 정의 ---
     User("fa:fa-user 사용자")
 
-    %% subgraph " "
-        %% --- 외부 시스템 그룹 (수직 정렬로 수정) ---
-        %% subgraph "외부 시스템 (External Systems)" 괄호 부분 text 짤림.
-        subgraph "외부 시스템"
+    subgraph "외부 시스템"
+        Google("<b>Google</b><br>[Identity Provider]")
+        Firebase("<b>Firebase Admin</b><br>[Token Verification]")
+        Todoist("<b>Todoist API</b><br>[Task Management]")
+    end
 
-            Google("<b>Google</b><br>[Identity Provider]")
-            Firebase("<b>Firebase Admin</b><br>[Token Verification]")
-            Todoist("<b>Todoist API</b><br>[Task Management]")
-        end
-    %% end
+    subgraph "뽀모도로 관리 시스템"
+        direction LR
+        Frontend("<b>프론트엔드</b><br>[React SPA + mediasoup-client(full-ICE)]")
+        Backend("<b>백엔드 API</b><br>[NestJS: REST + Signaling(Socket.IO) + Mediasoup SFU(ICE-lite)]")
+        Database("<b>데이터베이스</b><br>[MongoDB Atlas]")
+    end
 
-    %% subgraph " "
-        %% --- 우리 시스템 그룹 ---
-        %% subgraph "뽀모도로 관리 시스템 (Our System)" 괄호 부분 text 짤림.
-        subgraph "뽀모도로 관리 시스템"
-
-            direction LR
-            Frontend("<b>프론트엔드</b><br>[React SPA in Browser]")
-            Backend("<b>백엔드 API</b><br>[NestJS on Server]")
-            Database("<b>데이터베이스</b><br>[MongoDB Atlas]")
-        end
-    %% end
-
-    %% --- 관계 정의 ---
     User -- "사용" --> Frontend
     Frontend -- "API 요청<br>[HTTPS/REST]" --> Backend
+    Frontend -- "시그널링<br>[Socket.IO]" --> Backend
+    Frontend -- "미디어 스트림<br>[WebRTC/RTP]" --> Backend
     Frontend -- "OAuth 2.0 인증" --> Google
     Backend -- "ID 토큰 검증" --> Firebase
     Backend -- "데이터 Read/Write" --> Database
     Backend -- "할 일 목록 동기화<br>[REST API]" --> Todoist
 
-    %% --- 스타일 ---
     style User fill:#2a9d8f,stroke:#264653,color:#fff
     style Frontend fill:#264653,stroke:#2a9d8f,color:#fff
     style Backend fill:#264653,stroke:#2a9d8f,color:#fff
@@ -264,6 +256,56 @@ erDiagram
     POMODORO }o..o{ TODOIST_TASK_TRACKING : "tracks"
 ``` -->
 
+### Component Diagram (C3)
+
+```mermaid
+    flowchart TD
+        %% 외부 서비스 및 클라이언트 정의
+        Frontend["Frontend (React / mediasoup-client / socket.io-client)"]
+        FirebaseAuth["Firebase Auth (External Auth Service)"]
+        MongoDB[("MongoDB (Mongoose Database)")]
+
+        %% 백엔드 API (서브그래프 중첩 제거)
+        subgraph Backend ["Backend API (NestJS Container)"]
+            Gateway["SignalingGateway (signaling module)"]
+            GroupService["GroupStudyManagementService (group-study-management module)"]
+            MediasoupSvc["MediasoupService (mediasoup module)"]
+        end
+
+        %% 인메모리 상태 세션 (별도 서브그래프로 분리)
+        subgraph Memory ["In-Memory Session States"]
+            RoomEntity["Room Entity (In-Memory Room State)"]
+            PeerEntity["Peer Entity (In-Memory Peer State)"]
+        end
+
+        %% 연결선 정의 (가장 표준적인 -->|라벨| 문법 사용)
+        Frontend -->|1. Socket Connection and Signaling| Gateway
+        Gateway -.->|2. Verify Token| FirebaseAuth
+
+        Gateway -->|3. Delegate Logic| GroupService
+        Gateway -->|Query RTP Capabilities| MediasoupSvc
+
+        GroupService -->|4. Delegate Transport Creation| MediasoupSvc
+        GroupService -->|1. DB에서 방 메타데이터 조회| MongoDB
+        GroupService -->|2. 획득한 데이터로 Room 객체 동적 생성| RoomEntity
+
+        GroupService -->|Manage State| RoomEntity
+        GroupService -->|Manage State| PeerEntity
+        RoomEntity -->|Map Active Peers| PeerEntity
+
+        MediasoupSvc -->|WebRTC / RTP Media Stream| Frontend
+
+        %% 스타일 정의 (가장 호환성 높은 속성만 사용)
+        style Frontend fill:#264653,stroke:#2a9d8f,color:#fff
+        style FirebaseAuth fill:#4c566a,stroke:#d08770,color:#fff
+        style Gateway fill:#2a9d8f,stroke:#264653,color:#fff
+        style GroupService fill:#2a9d8f,stroke:#264653,color:#fff
+        style MediasoupSvc fill:#e76f51,stroke:#264653,color:#fff
+        style RoomEntity fill:#e9c46a,stroke:#264653,color:#000
+        style PeerEntity fill:#e9c46a,stroke:#264653,color:#000
+        style MongoDB fill:#4f772d,stroke:#31572c,color:#fff
+```
+
 ## Page Screenshots
 
 - 아래는 각 페이지의 간단한 스크린샷입니다. 구체적인 기능 설명은 'Features' 사이드바 항목에서 다루겠습니다.
@@ -315,6 +357,17 @@ Daily goals
 
 Weekly goals
 ![weekly-goal](./img/weekly-goal-svg.svg)
+
+### `/group-study`
+
+로비  
+![lobby](./img/group-study-lobby.png)
+
+방  
+![room](./img/group-study-room.png)
+
+한 화면에  
+![tile](./img/group-study-tile.png)
 
 ### `/settings`
 

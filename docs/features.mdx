@@ -405,6 +405,45 @@ export class TodoistService {
 <ResponsivePlayer url="https://youtu.be/PVOntzuxOSo" />
 
 
+## Group Study
+
+### Share Cameras and Focus duration
+
+사용자들은 방에 참가하여 화면을 공유하고 그날 집중한 시간을 실시간으로 공유합니다.
+
+<ResponsivePlayer url="https://youtu.be/wWOmmVADa0s" />
+
+### 화질 조정
+네트워크 환경에 따라 화질이 자동 조정됩니다. 그리고 원하는 참가자의 화면 화질을 수동 조절할 수 있습니다. (네트워크 비용 절감 위해)
+
+<ResponsivePlayer url="https://youtu.be/hXkD0rF5NNw" />
+
+### 불안정한 인터넷 연결 다루기
+#### Wi-Fi와 모바일 네트워크 간의 전환
+
+<ResponsivePlayer url="https://youtu.be/dFCDMSJzcW8" />
+
+#### 인터넷 연결 끊김
+
+* **3분 이내에 재연결된 경우:** 연결이 끊기기 전에 완료된 집중 시간과 채팅 내용이 복원됩니다.
+<ResponsivePlayer url="https://youtu.be/K11k11Lab20" />
+
+* **3분 이후에도 재연결되지 않은 경우:** 연결이 끊긴 참여자는 방에서 퇴장 처리되며, 다른 참여자들의 화면에서도 사라집니다.
+  - Disconnected user의 브라우저에서 먼저 방출이 이루어지고, 다른 참가자들의 화면 상에서는 (그 disconnected user의) 방출이 조금 늦게 진행되는 이유:
+    - Client side: 브라우저가 연결 끊김을 즉각적으로 인식하기 때문에 (disconnect reason=`transport close`), Wifi를 해제한 이후 정확히 3분 뒤에 사용자는 방에서 나가집니다.
+    - Server side: 서버는 사용자가 WiFi나 인터넷을 즉각 종료한 것을 직접 인식할 수 없으므로, ping timeout에 의한 disconnection이 발생할 때까지 약간 시간이 지난 후부터 3분이 카운트다운 됩니다.
+
+<br />
+
+1. *방에서 나가진 경우*
+<ResponsivePlayer url="https://youtu.be/k5LjMO9mjMg?si=eCu8-Pp7QSZWRrNy" />
+
+<br />
+
+2. *방에서 나가진 후 재입장에 성공한 경우*
+<ResponsivePlayer url="https://youtu.be/CmRf1CbA88w" />
+
+
 ## [Settings](https://youtu.be/DcW4KFaIp_g) 
 
 - 다음 값들을 설정할 수 있습니다.
