@@ -68,9 +68,10 @@ slug: /
 
 - Styled Components, React Inline Style
 
-#### WebRTC
+#### Real-time Communication
 
-- [mediasoup-client](https://www.npmjs.com/package/mediasoup-client)
+- WebRTC (Media Transport via [mediasoup-client](https://www.npmjs.com/package/mediasoup-client))
+- [Socket.io](https://www.npmjs.com/package/socket.io-client) (Signaling)
 
 #### Etc
 
@@ -83,18 +84,15 @@ slug: /
   - Pub/Sub (Publisher-Subscriber Pattern)
     - [example](https://pomodoro-doc.vercel.app/problem-solving#%ED%95%B4%EA%B2%B0-%EB%B0%A9%EC%8B%9D-1)
 
-### 백엔드
+### 백엔드 & 인프라
 
-- NestJS, Express
-- [Firebase Admin](https://www.npmjs.com/package/firebase-admin)
-- MongoDB Atlas, Mongoose, @nest/mongoose
-- WebRTC
-  - [mediasoup](https://www.npmjs.com/package/mediasoup)
-
-### 호스팅
-
-- Vercel - React app
-- [Render.com](https://render.com) - API server
+- **Framework**: NestJS
+- **Database**: MongoDB Atlas, Mongoose
+- **Real-time & Media**: WebRTC, [mediasoup](https://www.npmjs.com/package/mediasoup) (SFU Media Server), [socket.io](https://www.npmjs.com/package/socket.io) (Signaling)
+- **Infrastructure & Hosting**:
+  - GCP Compute Engine (Ubuntu기반 가상 인스턴스 직접 운영)
+  - Vercel (Frontend React app)
+- **Web Server & Process Management**: Nginx (Reverse Proxy), PM2
 
 ## 기능 요약
 
