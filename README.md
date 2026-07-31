@@ -1,41 +1,56 @@
-# Website
+# Pomodoro Project Documentation
 
-This website is built using [Docusaurus](https://docusaurus.io/), a modern static website generator.
+Pomodoro 기법을 기반으로 집중·휴식 시간을 관리하고, 통계·피드백·협업 기능을 제공하는 웹 애플리케이션의 프로젝트 문서입니다.
 
-### Installation
+- [라이브 앱](https://pomodoro-git-main-yhs-projects-00a441cb.vercel.app)
+- [애플리케이션 소스 코드](https://github.com/Yonghwan-Song/pomodoro)
+- [문서 사이트](https://pomodoro-doc.vercel.app)
 
-```
-$ yarn
-```
+## 먼저 읽을 문서
 
-### Local Development
+프로젝트를 빠르게 이해하려면 아래 순서로 읽어 주세요. 이 세 문서는 프로젝트의 목적, 사용자 기능, 그리고 핵심 문제 해결 과정을 각각 설명하는 주요 문서입니다.
 
-```
-$ yarn start
-```
+1. [프로젝트 개요](docs/introduction.md) — 프로젝트 배경, 기술 스택, 주요 기능 요약, 시스템 아키텍처(C4), 화면 예시
+2. [기능](docs/features.mdx) — 타이머·타임라인·통계·목표·오프라인 처리·Todoist 연동·그룹 스터디·설정 등 사용자 기능과 데모
+3. [문제 해결](docs/problem-solving.mdx) — 설계 제약을 분석하고 해결책을 구현·검증한 과정
 
-This command starts a local development server and opens up a browser window. Most changes are reflected live without having to restart the server.
+## 프로젝트 한눈에 보기
 
-### Build
+이 앱은 포모도로 세션과 휴식을 측정하고, 집중 기록을 시각화·통계화합니다. 로그인하지 않은 사용자도 사용할 수 있도록 상태의 영속성을 고려했으며, 네트워크 단절 상황과 실시간 그룹 스터디의 연결 복구도 다룹니다.
 
-```
-$ yarn build
-```
+주요 기능은 다음과 같습니다.
 
-This command generates static content into the `build` directory and can be served using any static contents hosting service.
+- 타이머: 일시 정지 시간 기록, 자동 시작, 세션 시간 조절, 카테고리별 기록, 브라우저 재방문 후 세션 이어가기
+- 피드백과 통계: 수평 타임라인, 반응형 UI, 사이클 이행률, 일간·주간·카테고리별 통계와 목표
+- 안정성 및 연동: 오프라인 요청 보관·재전송, Todoist 연동, Google 인증
+- 협업: WebRTC/mediasoup 기반 그룹 스터디와 불안정한 네트워크에서의 재연결 처리
 
-### Deployment
+## 핵심 문제 해결 사례
 
-Using SSH:
+[문제 해결 문서](docs/problem-solving.mdx)는 채용 관점에서 특히 참고할 수 있는 기술적 의사결정과 검증 과정을 담고 있습니다.
 
-```
-$ USE_SSH=true yarn deploy
-```
+- 페이지를 이동하거나 앱을 다시 열어도 진행 중인 타이머 상태를 정확히 복원하고, 통계에 반영하는 방법
+- 인터넷이 끊겨도 사용자 작업을 잃지 않도록 요청을 저장하고 연결 복구 후 재전송하는 방법
+- 라이브러리 없이 수평 타임라인을 구현하고 화면 크기 변화에 대응한 방법
+- WebRTC의 TCP 시그널링과 UDP 미디어 연결이 각각 또는 동시에 끊기는 경우를 구분해 복구한 방법
 
-Not using SSH:
+각 사례에는 문제 상황, 해결 방식, 시행착오 및 시퀀스 다이어그램 또는 테스트 방법이 포함됩니다. 관련 설계에 대한 비판적 검토와 개선점은 [Questions](docs/questions.mdx)에서 확인할 수 있습니다.
 
-```
-$ GIT_USER=<Your GitHub username> yarn deploy
-```
+## 전체 문서 구조
 
-If you are using GitHub pages for hosting, this command is a convenient way to build the website and push to the `gh-pages` branch.
+| 문서 | 다루는 내용 | 읽는 경우 |
+| --- | --- | --- |
+| [introduction.md](docs/introduction.md) | 프로젝트 개요, 기술 스택, 기능 요약, C4 아키텍처, 화면 | 프로젝트의 전체 맥락을 먼저 파악할 때 |
+| [features.mdx](docs/features.mdx) | 사용자 기능, 구현 설명, 데모 영상 | 제품이 실제로 무엇을 할 수 있는지 볼 때 |
+| [problem-solving.mdx](docs/problem-solving.mdx) | 핵심 문제, 해결 과정, 제약과 검증 | 기술적 문제 해결 역량을 검토할 때 |
+| [architectue-and-design.mdx](docs/architectue-and-design.mdx) | MongoDB 데이터 모델과 ERD | 데이터 구조를 확인할 때 |
+| [overview-of-pomodoro-session-data-flow.mdx](docs/overview-of-pomodoro-session-data-flow.mdx) | MongoDB부터 통계 UI까지의 데이터 흐름 | 데이터가 서버와 클라이언트에서 어떻게 변환되는지 볼 때 |
+| [description.mdx](docs/description.mdx) | TypeScript Generic, Conditional Type, Index Signature 활용 | 타입 설계의 세부 구현을 볼 때 |
+| [questions.mdx](docs/questions.mdx) | 핵심 설계에 대한 비판적 질문, 한계, 개선점 | 의사결정의 근거와 회고를 더 살필 때 |
+| [miscellaneous.mdx](docs/miscellaneous.mdx) | IndexedDB, Service Worker, 이벤트 루프 관련 보충 학습 | 문제 해결의 브라우저 동작 원리를 보충할 때 |
+| [javascript.mdx](docs/javascript.mdx) | JavaScript 런타임과 실행 메커니즘 학습 노트 | 기반 JavaScript 개념을 참고할 때 |
+| [links.mdx](docs/links.mdx) | 라이브 앱과 두 저장소 링크 | 외부 리소스로 이동할 때 |
+
+## 문서 간 관계
+
+`introduction.md`가 프로젝트의 출발점입니다. 기능의 사용자 관점 설명은 `features.mdx`에서, 해당 기능을 안정적으로 만들기 위해 마주한 기술 과제와 해결 과정은 `problem-solving.mdx`에서 이어집니다. 필요에 따라 데이터 모델·흐름 문서와 질문·보충 문서를 참조하면 됩니다.
