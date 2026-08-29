@@ -41,3 +41,34 @@
 .mermaid svg {
   font-size: 16px !important;
 }
+
+.erd-figure {
+  margin: 1.5rem 0;
+}
+
+.erd-preview-link {
+  display: block;
+  overflow: hidden;
+  border: 1px solid var(--ifm-color-emphasis-300);
+  border-radius: var(--ifm-global-radius);
+  background: #fff;
+  cursor: zoom-in;
+}
+
+.erd-preview {
+  display: block;
+  width: 100%;
+  margin: 0 !important;
+  transition: opacity 150ms ease;
+}
+
+.erd-preview-link:hover .erd-preview {
+  opacity: 0.82;
+}
+
+.erd-figure figcaption {
+  margin-top: 0.5rem;
+  color: var(--ifm-color-emphasis-700);
+  font-size: 0.875rem;
+  text-align: center;
+}

@@ -62,7 +62,7 @@ const config: Config = {
     // Replace with your project's social card
     image: "img/docusaurus-social-card.jpg",
     zooming: {
-      selector: ".markdown img",
+      selector: ".markdown img:not(.erd-preview)",
       delay: 500,
       background: {
         light: "rgba(101,108,133,0.8)",

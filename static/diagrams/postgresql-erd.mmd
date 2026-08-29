@@ -1,0 +1,108 @@
+%%{init: { "er": { "useMaxWidth": false } } }%%
+erDiagram
+    USERS {
+        uuid id PK
+        varchar firebase_uid UK
+        varchar user_email UK
+        varchar user_nickname "nullable"
+        text todoist_access_token "nullable"
+        boolean is_todoist_integration_enabled
+        text current_task_id
+        varchar color_for_uncategorized
+        boolean is_uncategorized_on_stat
+        jsonb timers_states
+        jsonb task_change_info_array
+        jsonb category_change_info_array
+        jsonb current_cycle_info
+        boolean does_pomo_start_automatically
+        boolean does_break_start_automatically
+        boolean does_cycle_start_automatically
+        jsonb goals
+        timestamp created_at
+    }
+
+    CATEGORIES {
+        uuid id PK
+        uuid user_id FK
+        varchar name
+        varchar color
+        boolean is_current
+        boolean is_on_stat
+    }
+
+    CYCLE_SETTINGS {
+        uuid id PK
+        uuid user_id FK
+        varchar name
+        boolean is_current
+        integer pomo_duration
+        integer short_break_duration
+        integer long_break_duration
+        integer num_of_pomo
+        integer num_of_cycle
+        double_precision average_adherence_rate "nullable"
+    }
+
+    CYCLE_RECORDS {
+        uuid id PK
+        uuid cycle_setting_id FK
+        double_precision ratio
+        double_precision cycle_adherence_rate
+        bigint start
+        bigint end
+    }
+
+    ROOMS {
+        uuid id PK
+        varchar name
+        boolean is_permanent
+        integer max_peers
+        timestamp created_at
+        timestamp updated_at
+    }
+
+    TODOIST_TASKS {
+        uuid id PK
+        uuid user_id FK
+        text todoist_task_id
+        uuid parent_task_id FK "nullable, self-reference"
+        jsonb task_data "nullable"
+        integer total_focus_duration
+        boolean is_active
+        timestamptz synced_at "nullable"
+    }
+
+    TIMER_SESSIONS {
+        uuid id PK
+        uuid user_id FK
+        timer_session_kind kind "pomo or break"
+        bigint start_time
+        bigint end_time
+        bigint time_counted_down
+        jsonb pause
+    }
+
+    POMODOROS {
+        uuid id PK
+        uuid user_id FK
+        integer duration
+        bigint start_time
+        text date
+        boolean is_dummy
+        uuid category_id FK "nullable"
+        uuid todoist_task_id FK "nullable"
+        uuid timer_session_id FK "nullable"
+    }
+
+    USERS ||--o{ CATEGORIES : owns
+    USERS ||--o{ CYCLE_SETTINGS : owns
+    USERS ||--o{ TODOIST_TASKS : owns
+    USERS ||--o{ TIMER_SESSIONS : creates
+    USERS ||--o{ POMODOROS : records
+
+    CYCLE_SETTINGS ||--o{ CYCLE_RECORDS : has
+
+    TODOIST_TASKS o|--o{ TODOIST_TASKS : parent_of
+    TODOIST_TASKS o|--o{ POMODOROS : associated_with
+    CATEGORIES o|--o{ POMODOROS : categorizes
+    TIMER_SESSIONS o|--o{ POMODOROS : contains

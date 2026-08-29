@@ -8,6 +8,7 @@
     "build": "docusaurus build",
     "swizzle": "docusaurus swizzle",
     "deploy": "docusaurus deploy",
+    "generate:erd": "mmdc -p mermaid-puppeteer-config.json -i static/diagrams/postgresql-erd.mmd -o static/img/postgresql-erd.svg -b white -w 2400",
     "clear": "docusaurus clear",
     "serve": "docusaurus serve",
     "write-translations": "docusaurus write-translations",
@@ -30,6 +31,7 @@
     "@docusaurus/module-type-aliases": "^3.10.1",
     "@docusaurus/tsconfig": "^3.10.1",
     "@docusaurus/types": "^3.10.1",
+    "@mermaid-js/mermaid-cli": "^11.16.0",
     "prettier": "^3.5.3",
     "typescript": "~5.5.2"
   },

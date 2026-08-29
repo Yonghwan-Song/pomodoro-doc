@@ -349,6 +349,37 @@ BC.addEventListener("message", async (ev) => {
 
 ### [비판적 질문들](./questions.mdx#한-세션이-진행-중일-때pomo-or-break-관계없이-다른-페이지들을-자유롭게-방문할-수-있도록-하는-것) 
 
+## Category·Task 변경 이력을 결합한 session segmentation {#session-segmentation}
+
+한 번의 focus session 안에서도 Category, Todoist Task와 pause 상태가 바뀔 수 있습니다. TimerSession은 실제 실행 구간 하나로 남기되, 통계에는 각 조합에 집중한 시간만 기록하기 위해 세션을 시간 기준으로 나눴습니다.
+
+### 변경 이벤트 수집
+
+- Category를 바꾸면 `categoryChangeInfoArray`에 Category와 변경 시각을 기록합니다. 이 배열은 Zustand, IndexedDB와 PostgreSQL에 동기화합니다.
+- Task를 바꾸면 `taskChangeInfoArray`에 Task ID와 변경 시각을 기록합니다. 현재 실제 경로는 Zustand와 PostgreSQL을 사용하며, IndexedDB 저장 함수는 정의돼 있지만 호출하지 않습니다.
+- pause 시작·종료 시각은 현재 타이머 상태의 `pause.record`에 저장합니다.
+
+세션이 시작될 때 첫 Category와 Task의 시각을 시작 시각으로 맞추고, 종료 후에는 다음 세션을 위해 현재 선택 하나와 timestamp `0`인 배열로 reset합니다.
+
+### 하나의 시간축에서 segment 만들기
+
+세션 종료 시 Category 변경, Task 변경, pause 시작·종료 이벤트를 합쳐 timestamp 순서로 정렬하고 마지막에 세션 종료 시각을 추가합니다. 인접한 이벤트 사이를 `(Category, Task, focus 또는 pause)` segment로 만든 뒤 pause segment를 제외하고, 다른 Category나 Task로 바뀌기 전까지 같은 조합의 focus 시간을 합산합니다.
+
+이 결과로 두 파생 데이터를 만듭니다.
+
+1. Category·Task 조합별 `pomodoroRecordArr`: 통계 이력으로 `pomodoros`에 저장
+2. Task별 `taskTrackingArr`: `todoist_tasks.total_focus_duration`에 누적
+
+서버는 두 작업을 하나의 transaction으로 처리합니다. `/timer` 밖에서 세션이 끝나는 경우에도 `index.tsx`가 IndexedDB의 Category 이력과 Zustand의 Task 이력을 읽어 같은 변환 함수를 호출합니다. 이름과 일부 주석에는 Service Worker가 남아 있지만 현재 countdown은 브라우저 main thread에서 실행됩니다.
+
+:::caution 현재 한계
+
+- TimerSession과 Pomodoro는 별도 요청으로 저장하며, 신규 Pomodoro의 `timer_session_id`는 아직 연결하지 않습니다.
+- 두 파생 배열을 클라이언트가 따로 계산하므로 서버가 서로의 합계를 재검증하지 않습니다.
+- duration을 분 단위로 내림하므로 1분보다 짧은 segment는 저장 결과에서 제외될 수 있습니다.
+
+:::
+
 ## **[인터넷 연결이 끊길 때에도 핵심 기능 사용할 수 있게 하기](https://pomodoro-doc.vercel.app/features#network-disconnection-handling)**
 
 ### 문제 상황 및 구현하게 된 계기 - 인터넷이 끊긴 동안 사용한 결과는 서버에 저장되지 않는다
