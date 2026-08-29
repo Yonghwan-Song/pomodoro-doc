@@ -1,8 +1,8 @@
 ---
-sidebar_label: "데이터베이스 설계"
+sidebar_label: "Database Design"
 sidebar_position: 2
 hide_table_of_contents: true
-title: "PostgreSQL 데이터베이스 설계"
+title: "PostgreSQL Database"
 description: "Pomodoro의 현재 데이터 모델과 PostgreSQL 무결성, 트랜잭션, JSONB 설계 원칙을 설명합니다."
 ---
 
@@ -198,7 +198,7 @@ Snapshot은 다시 접속했을 때 실행 상태를 복원하기 위한 현재 
 Todoist Task도 외부 응답에서 사라졌다고 바로 삭제하지 않습니다. `is_active = false`로 전환해 외부 상태와 로컬 누적 집중시간을 보존합니다.
 
 <details>
-<summary>MongoDB → PostgreSQL 마이그레이션 상세 기록 보기</summary>
+<summary>MongoDB → PostgreSQL 마이그레이션 상세 기록</summary>
 
 ## 마이그레이션 배경
 
