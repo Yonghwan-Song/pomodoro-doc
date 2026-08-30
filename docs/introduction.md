@@ -87,10 +87,10 @@ slug: /
 ### 백엔드 & 인프라
 
 - **Framework**: NestJS
-- **Database**: MongoDB Atlas, Mongoose
+- **Database & ORM**: MongoDB, Mongoose, PostgreSQL, Drizzle
 - **Real-time & Media**: WebRTC, [mediasoup](https://www.npmjs.com/package/mediasoup) (SFU Media Server), [socket.io](https://www.npmjs.com/package/socket.io) (Signaling)
 - **Infrastructure & Hosting**:
-  - GCP Compute Engine (Ubuntu기반 가상 인스턴스 직접 운영)
+  - GCP Compute Engine (Ubuntu virtual instance)
   - Vercel (Frontend React app)
 - **Web Server & Process Management**: Nginx (Reverse Proxy), PM2
 
