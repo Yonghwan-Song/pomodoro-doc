@@ -6,7 +6,8 @@ slug: /
 # Overview
 
 <!--이거 어떤 회사 공고에서 자기가 만든건지 뭐 기여도같은거 명시하라고 해서 적었던 것임. -->
-<!-- 기획부터 프론트엔드와 백엔드 개발까지 직접 진행한 개인 프로젝트입니다. -->
+
+기획부터 프론트엔드와 백엔드 개발까지 직접 진행한 개인 프로젝트입니다.
 
 ## 소개
 
@@ -21,6 +22,103 @@ slug: /
 
 - 원래 사용하던 앱이 있었는데, 일시 정지를 한 번 했을 때 얼마 동안 했는지 기록이 안 되었습니다.
 - 그것을 계기로 제가 원하는 기능들을 추가하면서 배워보자는 생각으로 만들기 시작했습니다.
+
+## 문제 해결 요약
+
+<div className="card margin-bottom--md">
+  <div className="card__header">
+    <h3>세션 진행 중에도 다른 페이지를 자유롭게 이동하기</h3>
+  </div>
+  <div className="card__body">
+    <p>
+      타이머 UI를 그리는 컴포넌트는 다른 페이지로 이동하면 unmount되어 상태를 잃어버립니다.
+      상태를 IndexedDB에 저장해두고 돌아올 때 복원하는 방식으로 풀었는데, 페이지 밖에서도
+      세션을 이어서 카운트다운하려고 Service Worker를 썼습니다. 하지만 Service Worker는
+      특정 이벤트에만 반응하고 곧바로 종료된다는 걸 뒤늦게 알게 되어, 카운트다운은 다시
+      메인 스레드로 옮기고 Pub/Sub 패턴으로 페이지 간 상태를 동기화했습니다.
+    </p>
+  </div>
+  <div className="card__footer">
+    <a href="https://pomodoro-doc.vercel.app/problem-solving#한-세션이-진행-중일-때pomo-or-break-관계없이-다른-페이지들을-자유롭게-방문할-수-있도록-하는-것">
+      자세히 보기 →
+    </a>
+  </div>
+</div>
+
+<div className="card margin-bottom--md">
+  <div className="card__header">
+    <h3>인터넷 연결이 끊겨도 핵심 기능은 계속 쓸 수 있게 하기</h3>
+  </div>
+  <div className="card__body">
+    <p>
+      학교 도서관에서 작업하다 보면 시험 기간마다 와이파이가 간헐적으로 끊겼는데, 그동안
+      진행한 기록은 서버에 저장되지 않는 문제가 있었습니다. 요청을 임시로 보관해두었다가
+      인터넷이 다시 연결되면 순서대로 다시 보내는 방식으로 풀었고, 같은 리소스를 여러 번
+      수정한 요청은 하나로 합쳐서 보내도록 했습니다.
+    </p>
+  </div>
+  <div className="card__footer">
+    <a href="https://pomodoro-doc.vercel.app/problem-solving#인터넷-연결이-끊길-때에도-핵심-기능-사용할-수-있게-하기">
+      자세히 보기 →
+    </a>
+  </div>
+</div>
+
+<div className="card margin-bottom--md">
+  <div className="card__header">
+    <h3>Horizontal Timeline 직접 만들기</h3>
+  </div>
+  <div className="card__body">
+    <p>
+      제 앱의 사용 방식에 맞는 타임라인 라이브러리를 찾기 어려워서 CSS 연습 삼아 직접
+      구현했습니다. 화면 크기에 따라 반응형으로 만드는 과정에서 media query를 쓰는 방식이
+      기존 이벤트 핸들러와 충돌해 작동하지 않는 문제를 겪었고, 대신 matchMedia 같은 Web
+      API로 화면 크기 변화를 감지해서 픽셀 값을 다시 계산하는 방식으로 바꿨습니다.
+    </p>
+  </div>
+  <div className="card__footer">
+    <a href="https://pomodoro-doc.vercel.app/problem-solving#horizontal-timeline-만들기">
+      자세히 보기 →
+    </a>
+  </div>
+</div>
+
+<div className="card margin-bottom--md">
+  <div className="card__header">
+    <h3>WebRTC 연결 끊김 대응하기</h3>
+  </div>
+  <div className="card__body">
+    <p>
+      화면 공유 기능은 시그널링에 TCP를, 미디어 전송에 UDP를 쓰는데, 두 프로토콜이 각각
+      혹은 동시에 끊기는 경우가 있었습니다. Firebase UID로 재연결 시 기존 세션을 복구하고,
+      ICE Restart로 미디어 연결까지 되살리도록 구현했습니다. 이 상황들을 재현해서 검증하기
+      위해 로컬 환경에서 TCP/UDP 연결을 직접 끊어보는 테스트 방법도 따로 마련했습니다.
+    </p>
+  </div>
+  <div className="card__footer">
+    <a href="https://pomodoro-doc.vercel.app/problem-solving#webrtc-disconnection-handling">
+      자세히 보기 →
+    </a>
+  </div>
+</div>
+
+## 기능 요약
+
+- [포모도로와 휴식으로 구성된 한 사이클에 대한 설정 및 각 세션의 측정](https://pomodoro-doc.vercel.app/features#settings)
+- [타임라인을 통해 시각적 피드백 제공](https://pomodoro-doc.vercel.app/features#timeline)
+- [일시 정지 및 정지한 시간 측정](https://pomodoro-doc.vercel.app/features#time-countdown-and-pause)
+  - 한 세션에서 한 일시 정지들을 타임라인에 그려서 피드백 제공
+- [자동 시작](https://pomodoro-doc.vercel.app/features#autostart)
+- [Statistics 페이지에서 일간 및 주간 통계 제공](https://pomodoro-doc.vercel.app/features#statistics)
+- [한 사이클을 얼마나 잘 이행했는지에 대한 feedback 제공](https://pomodoro-doc.vercel.app/features#cycle-adherence-rate)
+- [세션을 구분하기 위한 카테고리 생성](https://pomodoro-doc.vercel.app/features#settings)
+- [한 세션에서 여러 카테고리의 작업 가능](https://pomodoro-doc.vercel.app/features#categorized-sessions)
+- [카테고리별 통계](https://pomodoro-doc.vercel.app/features#total-graph)
+- [세션 진행 도중 `/timer`, `/statistics`, 그리고 `/settings` 페이지 간 자유롭게 이동 가능](https://pomodoro-doc.vercel.app/problem-solving#%ED%95%9C-%EC%84%B8%EC%85%98%EC%9D%B4-%EC%A7%84%ED%96%89-%EC%A4%91%EC%9D%BC-%EB%95%8Cpomo-or-break-%EA%B4%80%EA%B3%84%EC%97%86%EC%9D%B4-%EB%8B%A4%EB%A5%B8-%ED%8E%98%EC%9D%B4%EC%A7%80%EB%93%A4%EC%9D%84-%EC%9E%90%EC%9C%A0%EB%A1%AD%EA%B2%8C-%EB%B0%A9%EB%AC%B8%ED%95%A0-%EC%88%98-%EC%9E%88%EB%8F%84%EB%A1%9D-%ED%95%98%EB%8A%94-%EA%B2%83)
+- [목표설정 및 달성에 관한 통계](https://pomodoro-doc.vercel.app/features#goal)
+- [인터넷 연결이 불안정한 경우에도 주요 기능을 사용할 수 있도록 하기](https://pomodoro-doc.vercel.app/features#network-disconnection-handling)
+- [Todoist Integration Option 제공](https://pomodoro-doc.vercel.app/features#todoist-integration)
+- [화면 공유 스터디룸](https://pomodoro-doc.vercel.app/features#group-study)
 
 ## 기술 스택
 
@@ -87,30 +185,12 @@ slug: /
 ### 백엔드 & 인프라
 
 - **Framework**: NestJS
-- **Database & ORM**: MongoDB, Mongoose, PostgreSQL, Drizzle
+- **Database & ORM**: PostgreSQL, Drizzle
 - **Real-time & Media**: WebRTC, [mediasoup](https://www.npmjs.com/package/mediasoup) (SFU Media Server), [socket.io](https://www.npmjs.com/package/socket.io) (Signaling)
 - **Infrastructure & Hosting**:
   - GCP Compute Engine (Ubuntu virtual instance)
   - Vercel (Frontend React app)
 - **Web Server & Process Management**: Nginx (Reverse Proxy), PM2
-
-## 기능 요약
-
-- [포모도로와 휴식으로 구성된 한 사이클에 대한 설정 및 각 세션의 측정](https://pomodoro-doc.vercel.app/features#settings)
-- [타임라인을 통해 시각적 피드백 제공](https://pomodoro-doc.vercel.app/features#timeline)
-- [일시 정지 및 정지한 시간 측정](https://pomodoro-doc.vercel.app/features#time-countdown-and-pause)
-  - 한 세션에서 한 일시 정지들을 타임라인에 그려서 피드백 제공
-- [자동 시작](https://pomodoro-doc.vercel.app/features#autostart)
-- [Statistics 페이지에서 일간 및 주간 통계 제공](https://pomodoro-doc.vercel.app/features#statistics)
-- [한 사이클을 얼마나 잘 이행했는지에 대한 feedback 제공](https://pomodoro-doc.vercel.app/features#cycle-adherence-rate)
-- [세션을 구분하기 위한 카테고리 생성](https://pomodoro-doc.vercel.app/features#settings)
-- [한 세션에서 여러 카테고리의 작업 가능](https://pomodoro-doc.vercel.app/features#categorized-sessions)
-- [카테고리별 통계](https://pomodoro-doc.vercel.app/features#total-graph)
-- [세션 진행 도중 `/timer`, `/statistics`, 그리고 `/settings` 페이지 간 자유롭게 이동 가능](https://pomodoro-doc.vercel.app/problem-solving#%ED%95%9C-%EC%84%B8%EC%85%98%EC%9D%B4-%EC%A7%84%ED%96%89-%EC%A4%91%EC%9D%BC-%EB%95%8Cpomo-or-break-%EA%B4%80%EA%B3%84%EC%97%86%EC%9D%B4-%EB%8B%A4%EB%A5%B8-%ED%8E%98%EC%9D%B4%EC%A7%80%EB%93%A4%EC%9D%84-%EC%9E%90%EC%9C%A0%EB%A1%AD%EA%B2%8C-%EB%B0%A9%EB%AC%B8%ED%95%A0-%EC%88%98-%EC%9E%88%EB%8F%84%EB%A1%9D-%ED%95%98%EB%8A%94-%EA%B2%83)
-- [목표설정 및 달성에 관한 통계](https://pomodoro-doc.vercel.app/features#goal)
-- [인터넷 연결이 불안정한 경우에도 주요 기능을 사용할 수 있도록 하기](https://pomodoro-doc.vercel.app/features#network-disconnection-handling)
-- [Todoist Integration Option 제공](https://pomodoro-doc.vercel.app/features#todoist-integration)
-- [화면 공유 스터디룸](https://pomodoro-doc.vercel.app/features#group-study)
 
 ## 아키텍처 (Architecture)
 
