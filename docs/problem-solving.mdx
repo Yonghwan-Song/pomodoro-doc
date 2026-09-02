@@ -351,13 +351,13 @@ BC.addEventListener("message", async (ev) => {
 
 ## **Category·Task 변경 이력을 결합한 session segmentation** {#session-segmentation}
 
-#### 문제 상황
+### 문제 상황
 
 - 한 focus session 도중 Category와 Todoist Task는 서로 완전히 독립적으로 바뀔 수 있습니다. `categoryChangeInfoArray`와 `taskChangeInfoArray`는 각자 자신이 바뀐 시각만 따로 기록해두기 때문에, 이 둘을 그대로 두면 "이 순간 정확히 어떤 (Category, Task) 조합에 집중하고 있었는지"를 알 수 없었습니다.
 - 여기에 pause까지 겹칩니다. pause 중에 Category나 Task를 바꾸는 것도 가능해서, 세 종류(Category 변경, Task 변경, pause)의 이벤트가 시간축 위에서 임의의 순서로 섞일 수 있었습니다.
 - 통계에는 각 (Category, Task) 조합에 실제로 집중한 시간만 정확히 남아야 하므로, 서로 다른 소스에서 온 이 이벤트들을 하나로 합쳐 시간을 겹치거나 놓치지 않고 구간으로 잘라내야 하는 문제였습니다.
 
-#### 해결 방식
+### 해결 방식
 
 세션이 종료되면 [`recordPomo`](https://github.com/Yonghwan-Song/pomodoro/blob/79396a8335030989bf509097e157f8b465e13734/client/src/utils/recordPomo.ts#L25)가 이 변환을 시작합니다. Category 변경, Task 변경, pause 시작·종료 이벤트를 모두 같은 형태(`{kind, subKind, timestamp}`)로 통일한 뒤 하나의 배열로 합쳐 timestamp 순서로 정렬하고, 마지막에 세션 종료 시각을 추가했습니다(`makeTimestampsFromRawData`).
 
