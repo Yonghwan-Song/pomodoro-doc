@@ -349,26 +349,32 @@ BC.addEventListener("message", async (ev) => {
 
 ### [비판적 질문들](./questions.mdx#한-세션이-진행-중일-때pomo-or-break-관계없이-다른-페이지들을-자유롭게-방문할-수-있도록-하는-것) 
 
-<!--## **Category·Task 변경 이력을 결합한 session segmentation** {#session-segmentation}
+## **Category·Task 변경 이력을 결합한 session segmentation** {#session-segmentation}
 
-한 번의 focus session 안에서도 Category, Todoist Task와 pause 상태가 바뀔 수 있습니다. TimerSession은 실제 실행 구간 하나로 남기되, 통계에는 각 조합에 집중한 시간만 기록하기 위해 세션을 시간 기준으로 나눴습니다.
+#### 문제 상황
 
-### 변경 이벤트 수집
+- 한 focus session 도중 Category와 Todoist Task는 서로 완전히 독립적으로 바뀔 수 있습니다. `categoryChangeInfoArray`와 `taskChangeInfoArray`는 각자 자신이 바뀐 시각만 따로 기록해두기 때문에, 이 둘을 그대로 두면 "이 순간 정확히 어떤 (Category, Task) 조합에 집중하고 있었는지"를 알 수 없었습니다.
+- 여기에 pause까지 겹칩니다. pause 중에 Category나 Task를 바꾸는 것도 가능해서, 세 종류(Category 변경, Task 변경, pause)의 이벤트가 시간축 위에서 임의의 순서로 섞일 수 있었습니다.
+- 통계에는 각 (Category, Task) 조합에 실제로 집중한 시간만 정확히 남아야 하므로, 서로 다른 소스에서 온 이 이벤트들을 하나로 합쳐 시간을 겹치거나 놓치지 않고 구간으로 잘라내야 하는 문제였습니다.
+
+#### 해결 방식
+
+세션이 종료되면 [`recordPomo`](https://github.com/Yonghwan-Song/pomodoro/blob/79396a8335030989bf509097e157f8b465e13734/client/src/utils/recordPomo.ts#L25)가 이 변환을 시작합니다. Category 변경, Task 변경, pause 시작·종료 이벤트를 모두 같은 형태(`{kind, subKind, timestamp}`)로 통일한 뒤 하나의 배열로 합쳐 timestamp 순서로 정렬하고, 마지막에 세션 종료 시각을 추가했습니다(`makeTimestampsFromRawData`).
+
+이 배열을 한 번 순회하면서 "지금 활성 상태인 (Category, Task) 조합"과 "지금이 focus인지 pause인지"를 계속 추적합니다. 새 이벤트를 만날 때마다 직전 이벤트부터 지금까지의 구간을 **바뀌기 직전까지 활성이었던 조합**에 귀속시켜 segment로 만들고, 그 다음에 owner를 새 값으로 갱신합니다(`makeSegmentsFromTimestamps`). 이 순서를 반대로 하면 조합이 바뀐 시점 이후의 시간이 이전 조합에 잘못 더해지므로, segment를 먼저 확정한 뒤 owner를 갱신하는 순서가 중요했습니다.
+
+이렇게 만든 segment 중 pause 타입은 집중 시간 계산에서 제외하고, 나머지 focus segment만 (Category, Task) 조합별로 합산해 `pomodoroRecordArr`를, Task 기준으로만 다시 합산해 `taskTrackingArr`를 만듭니다.
+
+1. Category·Task 조합별 `pomodoroRecordArr`: 통계 이력으로 `pomodoros`에 저장
+2. Task별 `taskTrackingArr`: `todoist_tasks.total_focus_duration`에 누적
+
+원본 이벤트는 다음과 같이 수집·보관됩니다.
 
 - Category를 바꾸면 `categoryChangeInfoArray`에 Category와 변경 시각을 기록합니다. 이 배열은 Zustand, IndexedDB와 PostgreSQL에 동기화합니다.
 - Task를 바꾸면 `taskChangeInfoArray`에 Task ID와 변경 시각을 기록합니다. 현재 실제 경로는 Zustand와 PostgreSQL을 사용하며, IndexedDB 저장 함수는 정의돼 있지만 호출하지 않습니다.
 - pause 시작·종료 시각은 현재 타이머 상태의 `pause.record`에 저장합니다.
 
 세션이 시작될 때 첫 Category와 Task의 시각을 시작 시각으로 맞추고, 종료 후에는 다음 세션을 위해 현재 선택 하나와 timestamp `0`인 배열로 reset합니다.
-
-### 하나의 시간축에서 segment 만들기
-
-세션 종료 시 Category 변경, Task 변경, pause 시작·종료 이벤트를 합쳐 timestamp 순서로 정렬하고 마지막에 세션 종료 시각을 추가합니다. 인접한 이벤트 사이를 `(Category, Task, focus 또는 pause)` segment로 만든 뒤 pause segment를 제외하고, 다른 Category나 Task로 바뀌기 전까지 같은 조합의 focus 시간을 합산합니다.
-
-이 결과로 두 파생 데이터를 만듭니다.
-
-1. Category·Task 조합별 `pomodoroRecordArr`: 통계 이력으로 `pomodoros`에 저장
-2. Task별 `taskTrackingArr`: `todoist_tasks.total_focus_duration`에 누적
 
 서버는 두 작업을 하나의 transaction으로 처리합니다. `/timer` 밖에서 세션이 끝나는 경우에도 `index.tsx`가 IndexedDB의 Category 이력과 Zustand의 Task 이력을 읽어 같은 변환 함수를 호출합니다. 이름과 일부 주석에는 Service Worker가 남아 있지만 현재 countdown은 브라우저 main thread에서 실행됩니다.
 
@@ -378,7 +384,7 @@ BC.addEventListener("message", async (ev) => {
 - 두 파생 배열을 클라이언트가 따로 계산하므로 서버가 서로의 합계를 재검증하지 않습니다.
 - duration을 분 단위로 내림하므로 1분보다 짧은 segment는 저장 결과에서 제외될 수 있습니다.
 
-:::-->
+:::
 
 ## **[인터넷 연결이 끊길 때에도 핵심 기능 사용할 수 있게 하기](https://pomodoro-doc.vercel.app/features#network-disconnection-handling)**
 
@@ -564,6 +570,88 @@ After
 ![after](https://github.com/Yonghwan-Song/pomodoro/assets/72689705/8640f5e8-3024-4ff0-9535-ea9413f94e54)
 
 ### [비판적 질문들](./questions.mdx#horizontal-timeline-만들기) 
+
+## WebRTC 연결 수립 흐름: Capability, Transport, Producer/Consumer
+
+### 핵심 개념: ICE와 DTLS는 서로 다른 레이어를 담당한다
+
+mediasoup가 클라이언트와 주고받는 값은 크게 세 종류로 나뉘고, 이 값들은 서로 다른 레이어에서 각기 다른 문제를 해결합니다.
+
+```
+[3] Media        RTP/RTCP → SRTP/SRTCP로 암호화되어 실제 영상/음성 전달
+                  (codec, SSRC, encodings 등 = RTP Parameters)
+        ↑ DTLS가 여기서 쓸 암호화 키를 만들어줌
+[2] Security     DTLS Handshake → 통신 채널을 "암호화"
+                  (fingerprint, role = DTLS Parameters)
+        ↑ ICE가 뚫어놓은 경로 "위에서" 동작
+[1] Connectivity ICE → 어떤 네트워크 경로가 실제로 뚫리는지 "탐색/검증"
+                  (candidate, ufrag/pwd = ICE Parameters)
+```
+
+**ICE는 "패킷이 도달하는지" 확인**하는 역할이고, **DTLS는 그 위에서 "도달한 채널을 암호화"**하는 역할입니다. ICE로 경로를 뚫어야 DTLS 핸드셰이크를 보낼 수 있고, DTLS로 키를 만들어야 그 키로 SRTP 미디어를 암호화할 수 있으므로 순서가 고정됩니다.
+
+**ICE Candidate**: 한쪽이 가질 수 있는 "나에게 도달 가능한 IP:Port:Protocol 조합" 후보입니다. 자기 기기의 로컬 IP(`host`), STUN 서버를 통해 알아낸 NAT 밖 공인 IP(`srflx`), TURN 서버를 거치는 중계 주소(`relay`) 세 종류가 있습니다. 양쪽이 후보를 교환한 뒤 모든 후보 쌍에 대해 STUN Binding Request로 connectivity check를 수행해, 실제로 왕복이 되는 쌍을 찾아냅니다.
+
+**ufrag / pwd (ICE username fragment / password)**: connectivity check(STUN Binding Request)에 실리는 인증 정보입니다. `ufrag`는 이번 ICE 세션을 식별하는 짧은 랜덤 문자열로 STUN 요청의 `USERNAME` 필드에 실리고, `pwd`는 메시지의 HMAC(`MESSAGE-INTEGRITY`)을 계산하는 데 쓰여 제3자의 위조를 막습니다. [ICE Restart](#udp-단절)는 정확히 이 `ufrag`/`pwd` 쌍을 새로 발급하는 것을 의미합니다 — RFC 8445에 따라 ICE agent는 credential이 바뀌면 이를 완전히 새로운 세션으로 인식하고 connectivity check를 처음부터 다시 시작합니다.
+
+**DTLS Parameters (fingerprint, role)**: ICE가 뚫어놓은 UDP 경로 위에서 진행되는 암호화 핸드셰이크에 필요한 값입니다. `fingerprint`는 상대방 인증서를 해시한 값으로, 이미 신뢰된 시그널링 채널(Socket.IO)을 통해 미리 교환해두고 실제 핸드셰이크 중 받은 인증서와 대조해 중간자 공격을 막습니다. `role`은 누가 클라이언트/서버로 핸드셰이크를 시작할지를 정합니다. 핸드셰이크가 끝나면 그 세션에서 SRTP(미디어 암호화)에 쓸 키가 파생됩니다(DTLS-SRTP).
+
+> Host Candidate가 브라우저 정책(프라이버시 보호)에 의해 의도적으로 차단되어 연결이 막혔던 실제 트러블슈팅 사례는 [Miscellaneous 문서](./miscellaneous.mdx#webrtc-로컬-연결-장애-트러블슈팅-host-candidate와-프라이버시-정책)에서 확인할 수 있습니다.
+
+### 문제 상황
+
+SFU 구조에서는 서버(Router)가 코덱 협상의 기준점이 되어야 합니다. 클라이언트가 만들어내는 RTP Parameters는 결국 "Router가 이해할 수 있는 능력치(Capabilities) 안"에서 정해져야 하므로, Capability 교환이 항상 Transport 생성이나 Produce/Consume보다 먼저 일어나야 합니다. 아래 세 종류의 값이 서로 다른 시점에 오간다는 것을 명확히 구분하지 않으면 순서를 잘못 설계하기 쉽습니다.
+
+- **Capabilities**: "나는 어떤 코덱·확장을 다룰 수 있다"는 정적 스펙. 특정 스트림과 무관하며 세션당 한 번만 교환합니다.
+- **Transport Parameters**: 특정 네트워크 경로를 어떻게 연결할지에 대한 값(ICE/DTLS Parameters). 미디어 코덱과는 무관합니다.
+- **RTP Parameters**: 하나의 특정 스트림(트랙)을 어떤 코덱/SSRC/인코딩으로 주고받을지에 대한 구체값. Produce/Consume 시점에 오갑니다.
+
+### 해결 방식: 5단계로 나눠 순서를 강제
+
+```mermaid
+sequenceDiagram
+    actor ClientA as Client A (Producer)
+    participant Server as Signaling Server
+    participant Router as Mediasoup Router
+    actor ClientB as Client B (Consumer)
+
+    Note over ClientA,Router: 1. Capability 교환 (세션당 1회)
+    ClientA-)Server: emit GET_ROUTER_RTP_CAPABILITIES
+    Server->>Router: getRtpCapabilities()
+    Server--)ClientA: emit SEND_ROUTER_RTP_CAPABILITIES (router capabilities)
+    ClientA->>ClientA: device.load({ routerRtpCapabilities })<br/>→ device.rtpCapabilities 계산
+    ClientA-)Server: emit SET_DEVICE_RTP_CAPABILITIES (device capabilities)
+    Server->>Server: peer.rtpCapabilities로 캐싱 (나중에 Consume 시 재사용)
+
+    Note over ClientA,Router: 2. Transport 생성 (ICE/DTLS Parameters)
+    ClientA-)Server: emit CREATE_SEND_TRANSPORT / CREATE_RECV_TRANSPORT
+    Server->>Router: createWebRtcTransport()
+    Server--)ClientA: iceParameters, iceCandidates, dtlsParameters
+    ClientA->>ClientA: device.createSendTransport(options)<br/>device.createRecvTransport(options)
+
+    Note over ClientA,Router: 3. Transport 연결 (최초 produce/consume 호출 시 지연 트리거)
+    ClientA->>ClientA: transport.on('connect', dtlsParameters)
+    ClientA-)Server: emit CONNECT_SEND_TRANSPORT / CONNECT_RECV_TRANSPORT (dtlsParameters)
+    Server->>Router: transport.connect({ dtlsParameters })
+
+    Note over ClientA,Router: 4. Produce (RTP Parameters)
+    ClientA->>ClientA: sendTransport.on('produce', rtpParameters)
+    ClientA-)Server: emit PRODUCE ({ transportId, kind, rtpParameters })
+    Server->>Router: transport.produce()
+    Router--)Server: producerId
+    Server--)ClientB: emit ROOM_GET_PRODUCER (newProducerAvailable)
+
+    Note over ClientB,Router: 5. Consume (RTP Parameters, capabilities는 재전송하지 않음)
+    ClientB-)Server: emit INTENT_TO_CONSUME ({ producerId, peerId })
+    Server->>Router: canConsume(producerId, peer.rtpCapabilities로 체크)
+    Router--)Server: consumer 생성, rtpParameters
+    Server--)ClientB: ack ({ id, producerId, kind, rtpParameters })
+    ClientB->>ClientB: recvTransport.consume(consumerOptions)
+    ClientB-)Server: emit RESUME_CONSUMER
+    Note over ClientB: 실제 미디어 흐름 시작
+```
+
+`INTENT_TO_CONSUME` 단계에서 capabilities를 다시 보내지 않는 이유는, 1단계에서 서버가 이미 `peer.rtpCapabilities`로 캐싱해두었기 때문입니다. Capability는 세션당 한 번만 교환하고, 이후에는 서버가 계속 재사용하는 구조입니다.
 
 ## [**WebRTC Disconnection Handling**](https://pomodoro-doc.vercel.app/features#%EB%B6%88%EC%95%88%EC%A0%95%ED%95%9C-%EC%9D%B8%ED%84%B0%EB%84%B7-%EC%97%B0%EA%B2%B0-%EB%8B%A4%EB%A3%A8%EA%B8%B0)
 
@@ -790,6 +878,34 @@ newSocket.io.on("reconnect", () => {
 ```
 </ Collapse>
 
+Socket이 다시 연결됐을 때 클라이언트와 서버가 서로의 상태(Room에 있는지 Lobby에 있는지)를 확인하고, 그 조합에 따라 어떻게 분기하는지를 시퀀스 다이어그램으로 정리하면 다음과 같습니다. 서버 쪽 판단을 기준으로 삼는 이유는, 위 코드 주석에도 있듯 "단절된 당사자의 UX보다 단절되지 않고 남아있는 참가자들의 UX가 더 중요하기" 때문입니다.
+
+```mermaid
+sequenceDiagram
+    actor Client
+    participant Server as Signaling Server
+    participant Transport as mediasoup Transport (send/recv)
+
+    Note over Client,Server: TCP(Socket.IO)와 UDP(ICE)가<br/>동시에 또는 순서 상관없이 끊겼다가 복구되는 상황
+
+    Client->>Client: Socket.IO 재연결 성공 → "reconnect" 이벤트
+    Client->>Client: 남아있던 socketResetTimer가 있으면 clear
+    Client-)Server: emit CHECK_PEER_STATUS_IN_SERVER (volatile)
+    Server-->>Client: ack(doesPeerExistInPeerMap, isPeerInRoom)
+
+    alt 서버: Room 안 & 클라이언트도 Room으로 인지 [Room, Room]
+        Client->>Transport: setTimeout(0) → attemptToRestartIceWithGuards(sendTransport)
+        Client->>Transport: setTimeout(1000) → attemptToRestartIceWithGuards(recvTransport)
+    else 서버: Room 안 & 클라이언트는 Lobby로 인지 [Room, Lobby]
+        Note over Client: 로그만 남김 (도달하기 어려운 케이스)
+    else 서버: Lobby(방 밖) & 클라이언트는 Room으로 인지 [Lobby, Room]
+        Client->>Client: leaveRoom(false)
+        Client->>Client: forcedRoomExitReason = "tcp-socket-prolonged-disconnect"
+    else 서버: Lobby & 클라이언트도 Lobby [Lobby, Lobby]
+        Note over Client: 아무 것도 하지 않음 (정상 상태)
+    end
+```
+
 #### Edge Cases
 
 - **ICE Restart 요청에 대한 ACK response를 받기 전에 TCP가 다시 단절되는 경우**
@@ -872,6 +988,31 @@ socket.volatile.emit(
 ```
 </Collapse>
 
+두 번째 Edge Case(중복 ACK 수신)를 시퀀스 다이어그램으로 표현하면 다음과 같습니다. 가드 조건문이 없다면 동일한 transport에 대해 `restartIce()`가 두 번 호출되어 리소스가 낭비되거나 ICE 세션이 꼬일 수 있습니다.
+
+```mermaid
+sequenceDiagram
+    actor Client
+    participant Server as Signaling Server
+    participant Transport as mediasoup Transport
+
+    Client-)Server: emit RESTART_ICE { kind } (1차 요청, volatile)
+    Note over Client,Server: ACK 도착 전에 TCP가 다시 끊겼다가<br/>곧바로 복구되는 상황
+    Client-)Server: emit RESTART_ICE { kind } (2차 요청)
+    Server-->>Client: ack #1 (iceParameters)
+    Server-->>Client: ack #2 (iceParameters)
+
+    Client->>Client: ack #1 콜백 진입
+    alt transport.connectionState가 이미 connecting/connected
+        Note over Client: 이미 복구된 상태 → 로그만 남기고 종료 (가드)
+    else 아직 복구 안 됨
+        Client->>Transport: transport.restartIce(iceParameters)
+        Client->>Client: isIceRestartEmitted / isAckResponseNotReceived = false
+    end
+
+    Client->>Client: ack #2 콜백 진입
+    Note over Client: transport.connectionState가 이미 connected → 가드 조건에 걸려<br/>restartIce 중복 호출 방지
+```
 
 ### (로컬에서) 테스트 방법
 
@@ -1014,6 +1155,120 @@ echo "Done."
 </ Collapse>
 
 
+## WebRTC 수신 화질: 요청과 실제의 괴리 다루기
+
+### 문제 상황
+
+- mediasoup는 트랜스코딩(재인코딩) 없이 패킷을 그대로 중계하는 SFU입니다. 송신자가 하나의 화질로만 스트림을 올리면, 서버는 수신자 각각의 네트워크 상태에 맞춰 화질을 새로 만들어낼 수 없고 패킷을 버리는 것 말고는 할 수 있는 일이 없습니다.
+- 이를 해결하기 위해 송신자가 여러 해상도(spatial layer)를 동시에 인코딩해서 올리는 [Simulcast](https://mediasoup.org/documentation/v3/mediasoup/simulcast/)를 도입해, 서버가 수신자별로 적절한 해상도를 골라 전달할 수 있도록 했습니다.
+- 문제는 여기서 발생했습니다. 사용자가 UI에서 특정 화질을 "요청"하더라도, 이는 mediasoup에게 어디까지나 **선호(preferred) 값**을 전달하는 것일 뿐입니다. 실제로 전달되는 화질(**current layer**)은 그 순간의 네트워크 대역폭(BWE)에 따라 서버가 별도로 결정합니다.
+- 초기 구현은 사용자가 요청한 값을 그대로 "현재 화질"인 것처럼 표시하고 있었습니다. 그 결과 공공 와이파이 등 네트워크가 좋지 않은 환경에서는, 사용자가 고화질을 요청했지만 실제로는 서버가 저화질만 전달하고 있는데도 UI에는 "고화질"이라고 표시되는 불일치가 발생했습니다.
+
+### 해결 방식
+
+`consumer.setPreferredLayers({ spatialLayer })` 호출 시 `temporalLayer`는 의도적으로 생략했습니다. 생략하면 mediasoup worker가 해당 Consumer에서 가능한 최대 temporal layer(FPS)를 채워주므로, "해상도(spatial)만 사용자가 직접 낮추고, 프레임 수(temporal)는 항상 최대로 유지"하는 정책을 코드 변경 없이 구현할 수 있었습니다.
+
+<Collapse title={"setConsumerPreferredLayers"}>
+```ts
+// group-study-management.service.ts
+async setConsumerPreferredLayers(
+  uid: string,
+  consumerId: string,
+  spatialLayer: number,
+) {
+  const peer = this.requirePeer(uid, 'setConsumerPreferredLayers');
+  if (!peer) {
+    return { success: false, error: 'Peer does not exist' };
+  }
+
+  try {
+    // temporalLayer를 생략하면 mediasoup worker가 해당 consumer에서 가능한
+    // 최대 temporal layer를 기본값으로 채운다. 즉 현재 정책은
+    // "spatial(해상도)만 명시적으로 낮추고 temporal(fps 계층)은 최대 유지"다.
+    //
+    // 이 호출은 preferred layer를 바꾸는 것이고, 실제로 선택된 current layer는
+    // 네트워크 상태나 producer 상태에 따라 더 낮아질 수 있다. 실제 값은
+    // 아래의 `layerschange` 이벤트를 통해 클라이언트에 전달된다.
+    return await peer.setPreferredLayersOfConsumer(spatialLayer, consumerId);
+  } catch (error) {
+    // ...
+  }
+}
+```
+</Collapse>
+
+실제로 전달 중인 화질은 요청 시점이 아니라, mediasoup Consumer의 `layerschange` 이벤트를 통해서만 확인할 수 있습니다. 서버는 이 이벤트를 받아 그대로 소켓 이벤트(`CONSUMER_LAYERS_CHANGED`)로 클라이언트에 중계합니다.
+
+`layerschange`의 payload가 `undefined`로 전달되는 경우는 단순한 화질 정보 부재가 아니라, "네트워크 상태 악화로 SFU가 이 Consumer에게 더 이상 할당할 수 있는 레이어를 찾지 못해 미디어 포워딩이 사실상 중단됐다"는 의미로 해석해서 처리했습니다.
+
+<Collapse title={"consumer.on('layerschange', ...)"}>
+```ts
+// group-study-management.service.ts
+consumer.on('layerschange', (layers: ConsumerLayers | undefined) => {
+  // mediasoup의 `layerschange`는 "preferred layer를 이렇게 원한다"가 아니라
+  // "지금 실제로 forwarding 중인 current layer가 이렇게 바뀌었다"는 신호다.
+  // 그래서 UI 표시값은 preferredLayers보다 이 이벤트 payload를 신뢰하는 편이 맞다.
+  //
+  // [주의: BWE(Bandwidth Estimation) 기반 Network Drop 감지]
+  // 송출자나 수신자의 네트워크 상태가 악화되어 BWE 값이 심각하게 낮아지면,
+  // SFU는 더 이상 적절한 미디어 레이어를 전송할 수 없다고 판단해 스스로
+  // 할당할 spatial layer를 찾지 못하게 된다. 이때 mediasoup는 `layers`를
+  // `undefined`로 전달하며, 이는 "네트워크 문제로 해당 Consumer에 대한
+  // 미디어 포워딩이 사실상 중단된 상태"임을 알리는 heartbeat 역할을 한다.
+  const payload: ConsumerLayersChangedPayload = {
+    consumerId: consumer.id,
+    layers,
+  };
+
+  clientSocket.emit(EventNames.CONSUMER_LAYERS_CHANGED, payload);
+});
+```
+</Collapse>
+
+마지막으로, 클라이언트 상태를 "사용자가 요청한 값(`requestedSpatialLayer`)"과 "서버로부터 확인된 실제 값(`currentSpatialLayer`)"으로 분리하여, UI가 이 둘을 구분해서 보여줄 수 있도록 했습니다.
+
+<Collapse title={"ConsumerLayerState"}>
+```ts
+// client/src/zustand-stores/connection-slices/types.ts
+export type ConsumerLayerState = {
+  requestedSpatialLayer?: number;
+  currentSpatialLayer?: number;
+  isPausedByProducer?: boolean;
+  isPausedLocallyByViewer?: boolean;
+};
+```
+</Collapse>
+
+전체 흐름을 시퀀스 다이어그램으로 정리하면 다음과 같습니다. 요청(request)과 실제 반영(current)이 같은 타이밍에 일어나지 않는다는 점, 그리고 네트워크가 나빠지면 `layerschange`가 `undefined`로 오는 경우까지 함께 표현했습니다.
+
+```mermaid
+sequenceDiagram
+    actor User
+    participant ClientStore as Client Store (Zustand)
+    participant Server as Signaling Server (NestJS Gateway)
+    participant Worker as Mediasoup Worker
+
+    User->>ClientStore: 화질 낮추기 클릭
+    ClientStore->>ClientStore: requestedSpatialLayer 즉시 갱신 (optimistic)
+    ClientStore-->>Server: emit SET_CONSUMER_PREFERRED_LAYERS
+    Server->>Worker: consumer.setPreferredLayers({ spatialLayer })
+    Note over Worker: 이 시점엔 "선호"만 반영됨.<br/>실제 전달 레이어는 아직 안 바뀔 수 있음.
+
+    Note over Worker: 네트워크 상태(BWE)에 따라<br/>실제 전달 가능한 레이어가 별도로 결정됨
+    Worker--)Server: layerschange 이벤트 (currentLayers)
+    Server-->>ClientStore: emit CONSUMER_LAYERS_CHANGED
+    ClientStore->>ClientStore: currentSpatialLayer 갱신
+    ClientStore->>User: "요청: Low / 현재: Mid" 등으로 구분 표시
+
+    alt 네트워크 악화로 BWE 급락
+        Worker--)Server: layerschange(undefined)
+        Server-->>ClientStore: emit CONSUMER_LAYERS_CHANGED (layers: undefined)
+        ClientStore->>ClientStore: currentSpatialLayer = undefined
+        ClientStore->>User: "화질 확인 불가 / 전달 중단" 표시
+    end
+```
+
+이렇게 요청값과 실제값을 분리한 덕분에, 네트워크가 나쁜 상황에서도 사용자에게 "지금 고화질을 요청했지만 실제로는 낮은 화질로 전달되고 있다"는 사실을 정직하게 보여줄 수 있게 되었습니다.
 
 {/* #### Elastic scroll에 의한 bouncing effect 제외시키기
 

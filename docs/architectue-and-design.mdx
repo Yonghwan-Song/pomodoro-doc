@@ -26,7 +26,7 @@ NestJS 서버는 PostgreSQL과 Drizzle ORM을 사용합니다. 현재 Drizzle sc
 | Room | 방 목록을 재구성하기 위한 metadata. WebRTC 연결 상태는 포함하지 않음 | `rooms` |
 
 TimerSession과 Pomodoro는 기록 단위가 다릅니다. TimerSession은 focus 또는 break의 실제 실행 구간 하나를 나타내고, Pomodoro는 focus 구간을 Category와 Todoist Task 조합별로 나눈 통계 기록입니다.
-<!--변경 이벤트를 시간순으로 결합하는 과정은 [session segmentation 구현](./problem-solving.mdx#session-segmentation)에서 설명합니다.-->
+변경 이벤트를 시간순으로 결합하는 과정은 [session segmentation 구현](./problem-solving.mdx#session-segmentation)에서 설명합니다.
 
 ## ERD
 
@@ -203,7 +203,7 @@ Todoist Task도 외부 응답에서 사라졌다고 바로 삭제하지 않습�
 
 ## 마이그레이션 배경
 
-Pomodoro는 처음에 MongoDB와 Mongoose로 구현했습니다. 이후 Category, CycleSetting, TodoistTask처럼 서로 관계를 맺는 개념이 늘어날수록 제가 도메인을 생각하는 방식과 실제 저장 구조 사이의 차이가 커졌습니다. 머릿속에서는 자연스럽게 1:N 관계와 무결성 규칙을 떠올렸지만, 코드에서는 `userEmail`, ObjectId 배열, `populate()`와 애플리케이션 조회 규칙으로 관계를 다시 표현해야 했습니다.
+Pomodoro는 처음에 MongoDB와 Mongoose로 구현했습니다. 이후 Category, CycleSetting, TodoistTask처럼 서로 관계를 맺는 개념이 늘어날수록 제가 도메인을 생각하는 방식과 실제 저장 구조 사이의 차이가 커졌습니다. 머릿속에서는 자연스럽게 1:N 관계와 무결성 규칙을 떠올렸지만, 코드에서는 `userEmail`, ObjectId 배열, `populate()`와 애플리케이션 조회 규칙으로 관계를 다시 표현해야 했습니다. 새 개념을 추가할 때마다 이 번역 과정을 매번 다시 거쳐야 했고, 그때마다 머릿속 모델과 실제 저장 구조가 어긋난다는 느낌이 반복됐습니다.
 
 이 불일치를 줄이고 데이터의 관계를 UUID 외래키와 데이터베이스 제약조건으로 직접 표현하기 위해 PostgreSQL로 전환했습니다. 성능 문제를 해결하기 위한 전환이라기보다, 도메인의 관계형 mental model과 저장 모델을 일치시키고 무결성을 DB가 보장하게 하는 것이 주된 목적이었습니다.
 
@@ -280,6 +280,8 @@ CycleSetting.pomoSetting
 - 한 설정만 변경할 때 JSON 객체 전체를 read-modify-write하지 않아도 됩니다.
 - 타입, `NOT NULL`, default를 컬럼 단위로 선언할 수 있습니다.
 
+`autoStartSetting`은 `cycle_settings`와 같은 "설정"이라는 이유로 한데 묶는 방안도 고려했습니다. 하지만 CycleSetting은 특정 cycle 안에서만 의미가 있는 반면, `autoStartSetting`은 cycle 설정과 무관하게 언제든 바로 적용되는 값이라 성격이 다르다고 판단해 묶지 않았습니다. `users`와 별도의 1:1 테이블로 분리하는 안도 검토했지만, 이 값은 설정 화면에서 가끔 바뀔 뿐이라 분리로 얻는 이점이 크지 않다고 보고 `users`의 컬럼으로 남겼습니다. 반대로 `timersStates`는 세션 중 반복적으로 갱신되는 현재 상태라는 이유로 컬럼 평탄화 대신 JSONB로 남겨두었는데([아래 4번](#4-중첩-상태는-선택적으로-jsonb-유지) 참고), 갱신 빈도와 값의 성격이 저장 방식을 가르는 기준이 됐습니다.
+
 반면 MongoDB `pomoSetting`에 있던 일부 `min`/`max` validation은 현재 PostgreSQL `CHECK` constraint로 이전되지 않았습니다. 따라서 “모든 validation을 DB로 이전했다”기보다, **저장 구조와 관계 무결성을 먼저 이전했고 범위 검증은 후속 개선 대상**이라고 보는 것이 정확합니다.
 
 ### 3. Embedded array를 child table로 정규화
@@ -350,7 +352,7 @@ MongoDB pomodoros document N개
 - **Pomodoro**는 focus session을 Category와 Todoist Task 조합에 따라 나눈 통계용 segment입니다.
 
 한 focus session 도중 Category 또는 Todoist Task를 바꾸면 Pomodoro row가 여러 개 생길 수 있고, break session은 Pomodoro를 만들지 않습니다. `1:N` 관계는 schema에 정의돼 있지만, 현재 신규 저장 경로는 두 데이터를 별도 요청으로 저장하고 `timer_session_id`를 채우지 않아 실제 신규 row가 연결되지는 않습니다. 
-<!--[변경 이벤트를 segment로 변환하는 과정](./problem-solving.mdx#session-segmentation)을 별도로 정리했습니다.-->
+[변경 이벤트를 segment로 변환하는 과정](./problem-solving.mdx#session-segmentation)을 별도로 정리했습니다.
 
 #### 레거시 관계 backfill
 
@@ -477,7 +479,7 @@ flowchart LR
 - Todoist의 `total_focus_duration`은 legacy tracking 값을 복사하며, Pomodoro를 source of truth로 사용한 migration 후 aggregate rebuild는 실행하지 않습니다.
 - `todoist_tasks.parent_task_id` self-reference는 schema에 있지만 ETL과 현재 sync 경로가 계층 값을 채우지는 않습니다.
 - 단일 FK는 참조 row의 존재를 보장하지만 Category, TodoistTask, TimerSession이 Pomodoro와 같은 사용자인지는 복합 FK로 강제하지 않습니다. 현재 ETL과 service lookup이 동일 사용자를 선택하는 애플리케이션 규칙에 의존합니다.
-- `pomodoros (user_id, start_time)`는 현재 unique index입니다. segment 생성 규칙과 실제 데이터를 기준으로 동일 timestamp segment가 가능한지 계속 검증해야 합니다.
+- `pomodoros (user_id, start_time)`와 `timer_sessions (user_id, start_time)`는 둘 다 현재 unique index입니다. segment 생성 규칙과 실제 데이터를 기준으로 동일 timestamp segment나 session이 가능한지 계속 검증해야 합니다.
 
 :::
 
