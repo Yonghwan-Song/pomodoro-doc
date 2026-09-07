@@ -27,6 +27,47 @@ slug: /
 
 <div className="card margin-bottom--md">
   <div className="card__header">
+    <h3>Socket.IO로 시그널링 채널 설계하기</h3>
+  </div>
+  <div className="card__body">
+    <p>
+      브라우저끼리는 서로의 코덱과 네트워크 정보를 직접 주고받을 수 없어서, 그 교환을
+      중계할 채널을 NestJS Gateway 위에 Socket.IO로 직접 구현했습니다. mediasoup은
+      연결이 필요한 시점에 콜백을 호출해 줄 것을 요구하는데, 정작 그 답은 서버에 다녀와야
+      나오고 콜백을 호출하지 않으면 아무 에러 없이 연결이 멈춰버립니다. 소켓 ack 응답을
+      이 콜백에 이어 붙여 성공과 실패가 모두 라이브러리까지 전달되도록 했고, 재연결마다
+      소켓 ID가 새로 발급되는 문제는 사용자 신원을 기준으로 세션을 승계하고 뒤늦게 도착한
+      옛 소켓의 종료 이벤트는 무시하는 방식으로 처리했습니다.
+    </p>
+  </div>
+  <div className="card__footer">
+    <a href="https://pomodoro-doc.vercel.app/problem-solving#시그널링-채널-설계-socketio를-요청-응답-채널로-쓰기">
+      자세히 보기 →
+    </a>
+  </div>
+</div>
+
+<div className="card margin-bottom--md">
+  <div className="card__header">
+    <h3>WebRTC 연결 끊김 대응하기</h3>
+  </div>
+  <div className="card__body">
+    <p>
+      화면 공유 기능은 시그널링에 TCP를, 미디어 전송에 UDP를 쓰는데, 두 프로토콜이 각각
+      혹은 동시에 끊기는 경우가 있었습니다. Firebase UID로 재연결 시 기존 세션을 복구하고,
+      ICE Restart로 미디어 연결까지 되살리도록 구현했습니다. 이 상황들을 재현해서 검증하기
+      위해 로컬 환경에서 TCP/UDP 연결을 직접 끊어보는 테스트 방법도 따로 마련했습니다.
+    </p>
+  </div>
+  <div className="card__footer">
+    <a href="https://pomodoro-doc.vercel.app/problem-solving#webrtc-disconnection-handling">
+      자세히 보기 →
+    </a>
+  </div>
+</div>
+
+<div className="card margin-bottom--md">
+  <div className="card__header">
     <h3>세션 진행 중에도 다른 페이지를 자유롭게 이동하기</h3>
   </div>
   <div className="card__body">
@@ -78,25 +119,6 @@ slug: /
   </div>
   <div className="card__footer">
     <a href="https://pomodoro-doc.vercel.app/problem-solving#horizontal-timeline-만들기">
-      자세히 보기 →
-    </a>
-  </div>
-</div>
-
-<div className="card margin-bottom--md">
-  <div className="card__header">
-    <h3>WebRTC 연결 끊김 대응하기</h3>
-  </div>
-  <div className="card__body">
-    <p>
-      화면 공유 기능은 시그널링에 TCP를, 미디어 전송에 UDP를 쓰는데, 두 프로토콜이 각각
-      혹은 동시에 끊기는 경우가 있었습니다. Firebase UID로 재연결 시 기존 세션을 복구하고,
-      ICE Restart로 미디어 연결까지 되살리도록 구현했습니다. 이 상황들을 재현해서 검증하기
-      위해 로컬 환경에서 TCP/UDP 연결을 직접 끊어보는 테스트 방법도 따로 마련했습니다.
-    </p>
-  </div>
-  <div className="card__footer">
-    <a href="https://pomodoro-doc.vercel.app/problem-solving#webrtc-disconnection-handling">
       자세히 보기 →
     </a>
   </div>
@@ -454,7 +476,7 @@ Weekly goals
 ![narrow-settings-1](./img/settings/settings-narrow-1.png)
 ![narrow-settings-2](./img/settings/settings-narrow-2.png)
 
-<!-- Tech Stack Summarized version that is shitty.
+<!-- Tech Stack: 요약본 (아직 다듬지 않음)
 ### 프론트엔드
 
 - React (with TypeScript), React Router DOM, Axios, Zustand, Firebase Authentication

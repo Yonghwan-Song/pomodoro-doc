@@ -72,3 +72,32 @@
   font-size: 0.875rem;
   text-align: center;
 }
+
+/* mermaid 다이어그램을 클릭하면 새 탭에서 원본 크기로 열리는 wrapper (DiagramPopout) */
+.diagram-popout {
+  margin: 1.5rem 0;
+}
+
+.diagram-popout__canvas {
+  cursor: zoom-in;
+  border: 1px solid var(--ifm-color-emphasis-300);
+  border-radius: var(--ifm-global-radius);
+  transition: border-color 150ms ease, opacity 150ms ease;
+}
+
+.diagram-popout__canvas:hover,
+.diagram-popout__canvas:focus-visible {
+  border-color: var(--ifm-color-primary);
+  opacity: 0.92;
+}
+
+.diagram-popout__canvas > div:last-child {
+  margin-bottom: 0;
+}
+
+.diagram-popout__hint {
+  margin-top: 0.5rem;
+  color: var(--ifm-color-emphasis-700);
+  font-size: 0.875rem;
+  text-align: center;
+}

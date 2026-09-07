@@ -1,0 +1,478 @@
+---
+sidebar_label: "Database"
+sidebar_position: 2
+hide_table_of_contents: false
+---
+
+import Collapse from "../src/components/Collapse";
+
+# 데이터베이스
+
+PostgreSQL과 Drizzle ORM을 사용합니다.
+
+## 이 문서에서 쓰는 용어
+
+| 용어 | 뜻 |
+| --- | --- |
+| 세션 | 타이머를 한 번 돌린 구간입니다. 집중 세션과 휴식 세션이 있습니다. |
+| 사이클 | 집중 세션을 정해진 횟수만큼 반복하고, 그 사이에 짧은 휴식을, 마지막에 긴 휴식을 한 번 두는 묶음입니다. |
+| 사이클 설정 | 사이클을 구성하는 값 5개(집중·짧은 휴식·긴 휴식 시간, 집중 반복 횟수, 사이클 반복 횟수)의 묶음입니다. 사용자는 여러 개를 만들어 두고 그중 하나를 선택해 사용합니다. |
+| `ratio` | 한 사이클에서 실제로 집중한 시간을 그 사이클에 실제로 걸린 시간으로 나눈 값입니다. |
+| 이행률(`cycleAdherenceRate`) | `ratio`를 목표 `ratio`로 나눈 값입니다. 목표 `ratio`는 사이클 설정값으로 계산한 목표 집중 시간을 목표 사이클 길이로 나눈 값입니다. 1에 가까울수록 설정한 대로 수행한 것입니다. |
+| Task | Todoist에서 가져온 할 일입니다. 집중 시간을 카테고리뿐 아니라 Task별로도 기록합니다. |
+
+## 테이블 구성
+
+| 테이블 | 저장하는 내용 |
+| --- | --- |
+| `users` | 사용자 정보, 타이머 진행 상태, 자동 시작 설정, 목표 집중 시간 |
+| `categories` | 사용자별 카테고리 이름, 색상, 통계 표시 여부 |
+| `cycle_settings` | 집중·휴식 시간과 반복 횟수 등 사이클 설정 |
+| `cycle_records` | 사이클을 수행한 시간과 이행률 |
+| `timer_sessions` | 집중·휴식 세션의 시작과 종료 시각, 일시정지 기록 |
+| `pomodoros` | 카테고리와 Task별로 나누어 저장한 집중 시간 |
+| `todoist_tasks` | Todoist Task 정보, 상위 Task와의 관계, 누적 집중 시간 |
+| `rooms` | 스터디 방 이름, 최대 참여 인원 등의 설정 |
+{/* TODO: 사용자 정보를 제외한 column들 분리 */}
+
+### 세션 기록과 집중 시간 기록
+
+- `timer_sessions`는 Timeline에 세션을 표시할 때 사용합니다. 집중 세션뿐 아니라 휴식 세션도 저장하며, 일시정지한 구간도 함께 저장합니다.
+- `pomodoros`는 통계에 사용할 집중 시간을 저장합니다. 세션 도중 카테고리나 Task를 바꿀 수 있으므로, 하나의 집중 세션에서 여러 기록이 만들어질 수 있습니다.
+
+예를 들어 25분 동안 수학을 10분, 영어를 15분 공부했다면, 세션 전체 기록과 별도로 각 카테고리의 집중 시간을 저장합니다. 이때 `pomodoros`에는 행이 두 개 생기고, 각 행의 `startTime`은 세션을 시작한 시각과 카테고리를 바꾼 시각입니다. 즉 같은 세션에서 나뉜 기록이라도 `startTime`은 서로 다릅니다.
+
+{/* TODO: 어떻게 쪼개지는지 설명하는 부분으로 연결, 설명에 diagram넣기 */}
+
+## ERD
+
+<a className="erd-preview-link" href="/img/postgresql-erd.svg" target="_blank" rel="noopener noreferrer">
+  <img className="erd-preview" src="/img/postgresql-erd.svg" alt="PostgreSQL 테이블과 외래 키 관계" />
+</a>
+
+이미지를 클릭하면 새 탭에서 크게 볼 수 있습니다.
+
+- 각 테이블의 기본 키는 UUID입니다. 사용자에 속한 카테고리, 사이클 설정, Task, 세션, 집중 시간 기록은 `userId`로 `users`를 참조합니다.
+- `cycle_records`는 어떤 사이클 설정으로 수행한 기록인지 `cycleSettingId`로 연결합니다.
+- `todoist_tasks`의 `parentTaskId`는 같은 테이블의 다른 행을 참조하여 상위·하위 Task 관계를 나타냅니다.
+- `rooms`는 다른 테이블과 연결하지 않았습니다. 현재 접속한 참여자 정보는 서버 메모리에서 관리합니다.
+
+`pomodoros.timerSessionId`는 마이그레이션 과정에서 집중 시간 기록과 세션 기록을 연결하기 위해 추가한 외래 키입니다. 기존 데이터 중 대응하는 세션을 찾을 수 없는 경우가 있어 `NULL`을 허용했습니다. 새 기록을 저장할 때도 세션과 연결하도록 API를 수정할 예정입니다.
+
+### JSONB로 저장한 데이터
+
+타이머 진행 상태, 목표 집중 시간, 일시정지 기록, Todoist의 Task 객체 등을 JSONB로 저장했습니다. 이 중 일시정지 기록은 별도로 조회하기보다 세션과 함께 읽어 Timeline에 표시하므로, 별도 테이블로 나누지 않았습니다.
+
+<Collapse title={"JSONB 타입과 컬럼 정의"}>
+
+JSONB에 사용하는 TypeScript 타입입니다. `Task`는 Todoist SDK에서 제공하는 타입을 사용합니다.
+
+```ts
+import type { Task } from '@doist/todoist-api-typescript';
+
+type TimersStates = {
+  duration: number;
+  pause: {
+    totalLength: number;
+    record: { start: number; end: number }[];
+  };
+  repetitionCount: number;
+  running: boolean;
+  startTime: number;
+};
+
+type TaskChangeInfo = {
+  id: string;
+  taskChangeTimestamp: number;
+};
+
+type CategoryChangeInfo = {
+  categoryName: string;
+  categoryChangeTimestamp: number;
+  color: string;
+  progress: number;
+};
+
+type CycleInfo = {
+  totalFocusDuration: number;
+  cycleDuration: number;
+  cycleStartTimestamp: number;
+  veryFirstCycleStartTimestamp: number;
+  totalDurationOfSetOfCycles: number;
+};
+
+export interface Goal {
+  minimum: number;
+  ideal: number;
+}
+
+export type DailyGoals = [Goal, Goal, Goal, Goal, Goal, Goal, Goal];
+
+export interface Goals {
+  weeklyGoal: Goal;
+  dailyGoals: DailyGoals;
+}
+
+type Pause = {
+  totalLength: number;
+  record: { start: number; end: number }[];
+};
+```
+
+`users`의 JSONB 컬럼입니다.
+
+```ts
+timersStates: jsonb()
+  .$type<TimersStates>()
+  .default({
+    duration: 25,
+    pause: { totalLength: 0, record: [] },
+    repetitionCount: 0,
+    running: false,
+    startTime: 0,
+  })
+  .notNull(),
+taskChangeInfoArray: jsonb().$type<TaskChangeInfo[]>().default([]).notNull(),
+categoryChangeInfoArray: jsonb()
+  .$type<CategoryChangeInfo[]>()
+  .default([
+    {
+      categoryName: 'uncategorized',
+      categoryChangeTimestamp: 0,
+      color: '#f04005',
+      progress: 0,
+    },
+  ])
+  .notNull(),
+// Reset when a cylce ends
+currentCycleInfo: jsonb()
+  .$type<CycleInfo>()
+  .default({
+    totalFocusDuration: 100 * 60,
+    cycleDuration: 130 * 60,
+    cycleStartTimestamp: 0,
+    veryFirstCycleStartTimestamp: 0,
+    totalDurationOfSetOfCycles: 130 * 60,
+  })
+  .notNull(),
+
+goals: jsonb()
+  .$type<Goals>()
+  .default({
+    weeklyGoal: { minimum: 30, ideal: 40 },
+    dailyGoals: [
+      { minimum: 4, ideal: 6 },
+      { minimum: 4, ideal: 6 },
+      { minimum: 4, ideal: 6 },
+      { minimum: 4, ideal: 6 },
+      { minimum: 4, ideal: 6 },
+      { minimum: 4, ideal: 6 },
+      { minimum: 4, ideal: 6 },
+    ],
+  })
+  .notNull(),
+```
+
+`todoist_tasks`의 JSONB 컬럼입니다. 기존 데이터 중 Task 객체가 없는 경우가 있어 `NULL`을 허용합니다.
+
+```ts
+taskData: jsonb().$type<Task>(),
+```
+
+`timer_sessions`의 JSONB 컬럼입니다.
+
+```ts
+pause: jsonb()
+  .$type<Pause>()
+  .default({ totalLength: 0, record: [] })
+  .notNull(),
+```
+
+</Collapse>
+
+### 삭제 시 처리
+
+- 사용자를 삭제하면 해당 사용자의 카테고리, 사이클 설정, Task, 세션, 집중 시간 기록도 삭제됩니다. 사이클 설정에 연결된 `cycle_records`도 함께 삭제됩니다.
+- 카테고리를 삭제하면 `pomodoros.categoryId`는 `NULL`이 됩니다. 집중 시간 기록은 남지만, 기존 카테고리 이름과 색상은 남지 않습니다.
+- 상위 Task를 삭제하면 하위 Task의 `parentTaskId`는 `NULL`이 됩니다.
+- `pomodoros`가 참조하는 `todoist_tasks`와 `timer_sessions`에는 `onDelete`를 지정하지 않아 PostgreSQL 기본값인 `NO ACTION`이 적용됩니다. 해당 Task나 세션을 가리키는 집중 시간 기록이 남아 있으면 그 Task나 세션만 따로 삭제할 수 없습니다. 카테고리를 `NULL`로 만드는 것과는 다른 동작입니다.
+- 사용자를 삭제할 때는 `pomodoros`도 함께 삭제되고 `NO ACTION`은 문장 단위로 검사되므로, 위 제약에 걸리지 않습니다.
+
+## 제약조건과 인덱스
+
+### 사용자별 이름 중복 방지
+
+`categories`와 `cycle_settings`에는 `(userId, name)` 조합에 UNIQUE 제약조건을 설정했습니다. 같은 사용자가 동일한 이름을 중복해서 만들 수는 없지만, 서로 다른 사용자는 같은 이름을 사용할 수 있습니다.
+
+`todoist_tasks`도 `(userId, todoistTaskId)` 조합이 중복되지 않도록 했습니다.
+
+### 현재 선택된 항목
+
+카테고리와 사이클 설정은 각각 사용자당 최대 하나만 `isCurrent: true`가 될 수 있도록 Partial Unique Index를 설정했습니다.
+
+```ts
+uniqueIndex('categories_user_id_is_current_unique')
+  .on(table.userId)
+  .where(sql`${table.isCurrent} = true`)
+```
+
+`isCurrent`가 `true`인 행에만 적용되므로, 선택되지 않은 항목은 여러 개 저장할 수 있습니다. 반드시 하나를 선택하도록 강제하는 것은 아닙니다.
+
+### 사용자와 시작 시각
+
+`timer_sessions`와 `pomodoros`에는 `(userId, startTime DESC)` 조합으로 Unique Index를 설정했습니다. 같은 사용자의 기록에 동일한 시작 시각이 중복해서 저장되는 것을 막습니다.
+
+앞에서 본 것처럼 하나의 집중 세션이 여러 `pomodoros` 행으로 나뉘지만, 각 행의 `startTime`이 카테고리를 바꾼 시각이라 서로 다르므로 이 제약과 충돌하지 않습니다.
+
+정렬 방향 `DESC`는 유일성에는 영향을 주지 않습니다. 사용자별 기록을 최신순으로 조회하는 데 이 인덱스를 그대로 쓰기 위한 것입니다.
+
+## 조회와 트랜잭션
+
+### 집중 시간 조회
+
+- 통계용 Pomodoro 기록을 조회할 때는 연결된 카테고리의 이름, 색상, 통계 표시 여부도 함께 가져옵니다.
+- 오늘의 총 집중 시간은 사용자와 날짜로 기록을 찾고, `SUM(duration)`으로 합산합니다. 기록이 없으면 0을 반환합니다.
+
+### 집중 시간 저장
+
+`PomodorosService`에서는 다음 두 작업을 하나의 트랜잭션 안에서 처리합니다.
+
+1. `pomodoros`에 집중 시간 기록을 저장합니다.
+2. 요청에 포함된 Task별 집중 시간을 `todoist_tasks.totalFocusDuration`에 더합니다.
+
+둘 중 하나가 실패하면 트랜잭션 안의 변경을 취소합니다. 예를 들어 누적 시간을 갱신할 Task를 찾지 못하면, 앞에서 저장한 Pomodoro 기록도 반영되지 않습니다.
+
+## MongoDB 문서를 PostgreSQL 테이블로 변환한 기준
+
+기존 MongoDB의 `User` 문서에는 사용자 정보, 설정, 진행 중인 타이머 상태, 다른 문서의 참조가 함께 들어 있었습니다. 이를 PostgreSQL로 옮길 때는 기본 타입을 대응시키는 작업과, 중첩 객체(subdocument)·배열의 저장 구조를 결정하는 작업이 필요했습니다.
+
+정규화와 참조 무결성을 기본으로 고려하되, 중첩된 값을 모두 같은 방식으로 변환하지는 않았습니다. 각 데이터의 역할, 생명주기, 조회·갱신 단위를 살펴보고 **개별 컬럼으로 평탄화할지, JSONB로 유지할지, 별도 테이블의 행으로 분리할지** 결정했습니다.
+
+
+<!--- Questions
+  - subdocument이라고 표현하는게 맞는지? MongoDB에서 subdocument과 그냥 field 자체가 json형태를 띄는 것과는 다른것으로 알고있는데, 잘못 알고있는것인지, 아니면 그냥 엄밀하게 subdocument는 아니지만 그렇게 표현해도 괜찮은것인지 궁금.
+  - 그리고 적절한 곳에 Collapse component를 이용해서 user schema와 user table 정의를 보여주는게 좋을 것 같아.-->
+
+### 기본 타입과 문서 참조의 변환
+
+문자열과 boolean 같은 기본 타입 필드는 개별 컬럼으로 대응시켰습니다. 이때는 구조 변경보다 타입의 범위, `NULL` 허용 여부, 기본값과 제약조건을 확인하는 것이 주된 작업입니다. 숫자도 의미에 따라 구분하여, 사이클 설정의 시간·횟수는 `integer`, 밀리초 단위의 시작·종료 시각은 `bigint`, 이행률은 `double precision`으로 옮겼습니다.
+
+`User.cycleSettings`와 `User.categories`는 다른 컬렉션의 문서를 가리키는 `ObjectId[]`였습니다. 각 사이클 설정과 카테고리는 사용자 한 명에게 속하므로, 각각 `cycle_settings`, `categories` 테이블로 옮기고 자식 행의 `userId`가 `users.id`를 참조하도록 했습니다. 부모에 ID 배열을 저장하던 관계를 자식의 외래 키로 표현한 것입니다.
+
+참조 배열이라고 해서 항상 중간 연결 테이블을 만드는 것은 아닙니다. 이 프로젝트에서는 1:N 관계이므로 자식의 외래 키로 충분하며, 같은 항목을 여러 사용자가 공유하는 N:M 관계라면 별도 연결 테이블을 검토해야 합니다.
+
+<!--- Questions
+  - 사실 이부분도 mongoose level에서는 `Number`로 통일되는데, 실제 MongoDB Atlas에 접속해서 확인해보면, Integer인것도 있고 double인 것도 있더라고.. 그래서 숫자도 의미에 따라 구분한것은 맞긴 한데, 그냥 디테일하게 적지 않아도 되려나? `그러니까, MongoDB에 저장된 실제 type과는 별개로... PostgreSQL에는 1:1대응이 잘 안되는 것 같으니 다시 판단을 했다.` 이렇게 하면 되나?
+  - 그리고 그냥 bigint와 double precision등으로 설정한 이유도 찾아줄 수 있어?
+  - 그리고 내 기억에 timestamp냐 bigint냐 둘중 하나를 고민했던 것도 있었는데, 이게 AI와 이야기 하면서 구현한 것이라서 기억이 잘 안나.
+  - 참조 배열이라고 항상 연결 테이블을 만드는게 아니라는 증거를 나에게 설명해줘. 나는 잘 모르겠음. `ObjectId[]`를 type으로 갖는 mongoose schema field는 무조건 별개의 테이블이 존재할 수 밖에 없는거 아닌가? 애초에 저런 type을 사용한 것의 전제가 ObjectId를 unique key로 갖는 collection이 존재한다는 거잖아.-->
+
+### 중첩 객체와 배열을 판단한 기준
+
+중첩된 값은 다음 두 가지를 기준으로 검토했습니다.
+
+**기준 A. 진행 중인 상태인가, 완료된 기록인가?**
+기존 행을 계속 갱신(`UPDATE`)하는 데이터인지, 완료될 때마다 새 행을 추가(`INSERT`)해 쌓는 데이터인지 구분합니다. 판별은 "언제 초기화되는가"로 합니다. 세션 종료나 사이클 종료처럼 값이 되돌아가는 시점이 있으면 진행 중인 상태이고, 한번 만들어진 뒤 그대로 남으면 완료된 기록입니다.
+
+**기준 B. 내부 요소를 하나씩 다뤄야 하는가?**
+객체의 각 필드나 배열의 각 항목을 개별적으로 조회·제약·연결할 필요가 있는지 봅니다. 필요하면 필드는 개별 컬럼으로, 배열 항목은 별도 테이블의 행으로 만들어 타입·기본값·외래 키를 지정할 수 있게 합니다. 필요 없으면 묶음 그대로 JSONB에 둡니다.
+
+두 기준은 서로 다른 것을 정합니다. A는 **행을 갱신할지 추가할지**를, B는 **한 컬럼에 담을지 풀어낼지**를 정합니다.
+
+**기준 B의 예시: 일시정지 내역(`pause.record`)**
+<Collapse title={"pause객체 안의 record array field"}>
+```ts
+import { Prop, Schema, SchemaFactory, raw } from '@nestjs/mongoose';
+
+interface Pause {
+  totalLength: number;
+  record: { start: number; end: number }[]; // <--
+}
+
+@Schema()
+export class TodayRecord {
+  @Prop({ required: true })
+  userEmail: string;
+
+  // NOTE: If kind is 'pomo', I think it is possible to connect many pomodoro sessions to one TodayRecord.
+  @Prop()
+  kind: 'pomo' | 'break';
+
+  @Prop()
+  startTime: number;
+
+  @Prop()
+  endTime: number;
+
+  @Prop()
+  timeCountedDown: number;
+
+  @Prop(
+    raw({
+      type: {
+        totalLength: Number,
+        record: [{ start: Number, end: Number }],
+      },
+      default: { totalLength: 0, record: [] },
+    }),
+  )
+  pause: Pause; // <--
+}
+
+export const TodayRecordSchema = SchemaFactory.createForClass(TodayRecord);
+```
+</Collapse>
+
+오전 9시부터 9시 30분까지 진행한 세션에 9시 10분부터 9시 15분까지의 일시정지가 있다고 가정합니다. 현재 서버는 세션의 시작·종료 시각과 `pause`를 함께 가져오고, Timeline은 이 정보로 세션 중 어느 구간이 일시정지였는지 표시합니다. 이를 위해 일시정지 구간마다 별도 행을 만들 필요는 없다고 판단하여, `timer_sessions`의 `pause` 컬럼에 JSONB로 저장했습니다.
+
+반면 “지난달 모든 세션에서 5분 이상 일시정지한 구간만 찾아보자”처럼 일시정지 구간 자체를 조회·분석하는 요구가 중요해지면, `session_pauses` 테이블에 구간별 행을 저장하는 방식을 검토할 수 있습니다. JSONB로도 조회·분석은 가능하지만, 이런 요구가 반복될 때 각 구간을 독립된 행으로 다루는 편이 적합한지 다시 판단하는 것입니다.
+
+함께 조회한다는 사실만으로 JSONB를 선택하는 것은 아닙니다. 아래의 `cycleStat`은 현재 사이클 설정과 함께 조회하지만, 완료 기록을 독립적으로 보관·분석하려는 의도로 별도 테이블로 분리했습니다.
+
+<Collapse title={"cycleStat 객체 배열을 cycle_records의 개별 행으로 변환한 코드"}>
+
+기존 `schemas/cycleSetting.schema.ts`에서 관련 부분을 발췌했습니다. `cycleStat`에는 다른 문서의 ObjectId 대신, 사이클 수행 결과 객체 자체가 들어 있습니다.
+
+```ts
+export type CycleRecord = {
+  ratio: number;
+  cycleAdherenceRate: number;
+  start: number;
+  end: number;
+};
+
+@Schema({ timestamps: true })
+export class CycleSetting extends Document {
+  // 다른 필드는 생략
+
+  @Prop({ type: Array, default: [] })
+  // DESIGN: Separate table
+  // CycleSetting : cycleStat -> 1 : N
+  cycleStat: [CycleRecord];
+}
+```
+
+배열의 각 요소는 시작·종료 시각과 이행률을 가진 수행 기록 한 건입니다. 예를 들어 “이 설정으로 수행한 사이클의 이행률이 날짜에 따라 어떻게 달라졌는가?”를 분석하려면 각 기록을 개별적으로 다루게 됩니다. 이 필요를 고려해 `postgresql/schema.ts`에서는 다음과 같이 별도 테이블을 정의했습니다.
+
+```ts
+export const cycleRecords = pgTable('cycle_records', {
+  id: uuid().defaultRandom().primaryKey(),
+  cycleSettingId: uuid()
+    .notNull()
+    .references(() => cycleSettings.id, { onDelete: 'cascade' }),
+  ratio: doublePrecision().notNull(),
+  cycleAdherenceRate: doublePrecision().notNull(),
+  start: bigint({ mode: 'number' }).notNull(),
+  end: bigint({ mode: 'number' }).notNull(),
+});
+```
+
+`database-migration/migrate.ts`에서는 사이클 설정을 먼저 저장한 뒤, 그 ID를 배열의 각 요소에 붙여 삽입합니다. 아래는 해당 이관 코드의 핵심 부분입니다.
+
+```ts
+const stats = doc.cycleStat ?? [];
+if (stats.length > 0) {
+  const recordsToInsert = stats.map((s: any) => ({
+    cycleSettingId: insertedSetting.id,
+    ratio: s.ratio,
+    cycleAdherenceRate: s.cycleAdherenceRate,
+    start: s.start,
+    end: s.end,
+  }));
+
+  await db.insert(schema.cycleRecords).values(recordsToInsert);
+}
+```
+
+즉, 설정 문서 안에 기록 객체가 3개 있었다면, 이관 후에는 같은 `cycleSettingId`를 가진 `cycle_records` 행 3개가 생깁니다. 기준 B에서 판단한 것은 이처럼 **내장된 배열의 각 항목을 독립된 행으로 다룰 필요가 있는지**였습니다.
+
+</Collapse>
+
+이 질문을 바탕으로 선택한 구조는 다음과 같습니다.
+
+- [관련 Mongodb schema 정의 링크](https://github.com/Yonghwan-Song/pomodoro/tree/79396a8335030989bf509097e157f8b465e13734/nest-server/src/schemas)
+- [PostgreSQL table정의 링크](https://github.com/Yonghwan-Song/pomodoro/blob/79396a8335030989bf509097e157f8b465e13734/nest-server/src/postgresql/schema.ts#L4)
+
+| 기존 데이터 | 변환 결과 | 기준 | 판단의 중심 |
+| --- | --- | --- | --- |
+| `autoStartSetting` | `users`의 boolean 컬럼 3개 | B | 항목이 3개로 정해져 있고 각각 boolean 타입과 기본값을 지정할 수 있음 |
+| `CycleSetting.pomoSetting` | `cycle_settings`의 숫자 컬럼 5개 | B | 시간·횟수 항목이 5개로 정해져 있어 각각 정수 컬럼으로 정의 |
+| `timersStates` | `users`의 JSONB | A | 진행 중인 타이머를 표현하고 복원하는 상태 묶음 |
+| `taskChangeInfoArray`, `categoryChangeInfoArray` | `users`의 JSONB | A | 현재 세션의 시간 분할 계산 등에 사용한 뒤 초기화하는 변경 내역 |
+| `currentCycleInfo` | `users`의 JSONB | A | 사이클 진행과 이행률 계산에 사용하는 현재 상태 |
+| `goals` | `users`의 JSONB | B | 주간·요일별 현재 목표를 하나의 설정 묶음으로 보관 |
+| `CycleSetting.cycleStat` | `cycle_records`의 여러 행 | A·B | 설정과 구분하여 조회·보관할 완료된 사이클 기록 |
+| 세션의 `pause` | `timer_sessions`의 JSONB | B | 세션과 함께 읽어 Timeline에 표시하는 일시정지 구간 |
+
+<Collapse title={"기준 적용 설명"}>
+
+#### 설정 항목별로 타입과 기본값을 지정하도록 평탄화 — 기준 B
+
+`autoStartSetting`에는 집중·휴식·사이클을 자동으로 시작할지 정하는 항목 3개가 있습니다. 각 값은 사용자가 켜고 끌 수 있지만, 항목의 이름과 boolean이라는 타입은 정해져 있습니다. 이를 개별 컬럼으로 풀어 각 항목에 boolean 타입, 기본값 `false`, `NOT NULL`을 직접 지정했습니다.
+
+`pomoSetting`도 집중·짧은 휴식·긴 휴식 시간과 집중·사이클 반복 횟수라는 항목 5개가 정해져 있습니다. 각 항목을 `cycle_settings`의 정수 컬럼으로 만들고 기본값과 `NOT NULL`을 지정했습니다. 클라이언트에는 서버가 이 컬럼들을 다시 `pomoSetting` 객체로 묶어 응답하므로, 저장 형태를 바꿔도 기존 API의 객체 구조를 유지할 수 있습니다.
+
+다만 정수 컬럼으로 만드는 것만으로 허용 범위까지 제한되지는 않습니다. 예를 들어 기존 Mongoose 정의의 `pomoDuration`에는 1~1000이라는 범위가 있지만, 현재 PostgreSQL 스키마에는 이 범위를 강제하는 `CHECK`가 없습니다. 필드의 타입을 옮기는 작업과 최솟값·최댓값 같은 검증 규칙을 옮기는 작업은 각각 확인해야 합니다.
+
+#### 자동 시작 옵션은 사이클별 설정과 분리해서 저장 — 기준 A·B와 별개인 "어느 테이블에 둘지"
+
+자동 시작 옵션을 어느 테이블에 둘지는 평탄화 여부와 별도로 판단했습니다. `pomoSetting`은 사용자가 만들어 둔 각 사이클 설정에 속합니다. 반면 `autoStartSetting`은 어떤 사이클 설정을 선택했는지와 별개로 적용하는 사용자 옵션입니다.
+
+예를 들어 집중 세션 도중 자동 휴식 시작을 켜면, 진행 중인 세션을 초기화하지 않고 다음 휴식의 시작 방식에 적용합니다. 세션이나 사이클이 끝나도 이 옵션은 유지됩니다. 이런 적용 범위와 변경 시점의 차이를 고려해, 자동 시작 옵션은 `cycle_settings`에 넣지 않고 `users`에 두었습니다. 사용자별 설정 테이블을 따로 만들 수도 있다는 점은 아래에서 설명합니다.
+
+#### 진행 중인 타이머 상태는 기존 객체·배열 구조를 JSONB로 유지 — 기준 A·B
+
+`timersStates`는 실행 여부, 시작 시각, 일시정지 구간 등을 저장하여 진행 중인 타이머를 복원하는 데 사용합니다. `taskChangeInfoArray`와 `categoryChangeInfoArray`에는 집중 세션 도중 작업이나 카테고리를 바꾼 시점이 추가됩니다. 세션이 끝나면 이 배열로 작업·카테고리별 집중 시간을 계산해 별도 기록으로 저장하고, 배열은 다음 세션을 위한 상태로 초기화합니다.
+
+이번 이관에서는 이러한 상태 객체와 배열을 JSONB로 유지하여, 기존 코드가 사용하던 구조를 크게 바꾸지 않고 저장·복원할 수 있도록 했습니다. 특히 변경 배열의 각 항목을 영구 이력으로 보관하는 테이블은 만들지 않았습니다. 세션 안에서 시간을 계산하기 위한 데이터라는 현재 용도를 우선한 선택입니다.
+
+이것만이 가능한 저장 방식은 아닙니다. `timersStates`의 실행 여부·시작 시각은 개별 컬럼으로 풀고 일시정지 배열만 JSONB로 남길 수도 있습니다. 현재 구현은 이런 세부 분해까지 진행하지 않고 기존 상태 객체를 유지한 것입니다.
+
+`currentCycleInfo`도 JSONB로 유지했지만 초기화 시점은 다릅니다. 개별 집중 세션마다 전체를 초기화하지 않고, 설정한 사이클 반복의 마지막 집중 세션이 끝나면 `cycleStartTimestamp`와 `veryFirstCycleStartTimestamp`를 0으로, 시간 관련 값들을 선택한 설정의 목표값으로 되돌립니다. 이 값은 현재 실행을 위한 상태이고, 완료된 수행 결과는 `cycleStat`으로 구분합니다.
+
+#### 목표 설정과 완료된 세션의 일시정지 배열도 JSONB로 유지 — 기준 B
+
+`goals`에는 주간 목표와 요일별 목표 7개가 들어 있습니다. 현재 서버는 전달받은 목표 객체로 `users.goals`를 갱신합니다. 이번 이관에서는 이 저장 방식을 JSONB로 유지했습니다. 앞의 자동 시작 옵션처럼 필드별로 평탄화하는 선택도 가능하며, 기존 대화 기록만으로는 JSONB를 택한 추가 근거가 명확하지 않습니다.
+
+요일별 목표를 각각 조회·관리하는 요구가 커지면 요일당 한 행을 갖는 목표 테이블을 검토할 수 있습니다. “지난달에는 목표를 얼마로 설정했는가?”처럼 변경 이력을 보려면 별도의 작업이 필요합니다. 현재 목표를 덮어쓰는 대신, 변경 시점과 당시 목표를 추가 기록으로 저장해야 합니다.
+
+완료된 세션의 `pause.record`는 진행 중인 타이머 상태와 달리 세션 기록에 남는 배열입니다. 현재는 해당 세션의 Timeline을 그릴 때 사용하는 구간 목록이므로 `timer_sessions.pause`의 JSONB 안에 유지했습니다. 앞서 기준 B에서 본 `session_pauses` 분리는 여기에도 그대로 적용되는 후보입니다.
+
+#### 완료된 기록은 별도 행으로 분리 — 기준 A·B
+
+`cycleStat`은 사이클 설정 문서 안에 들어 있던 완료 기록 배열입니다. 설정값 자체와 수행 결과는 역할이 다르므로(기준 A), 각 요소를 `cycle_records`의 행으로 만들고 `cycleSettingId`로 설정과 연결했습니다(기준 B).
+
+`cycleStat`과 작업·카테고리 변경 배열은 모두 객체 배열이지만, 전자는 완료된 수행 기록이고 후자는 현재 세션의 계산에 사용하는 상태입니다. **배열이라는 형태보다, 요소를 독립된 기록으로 보관하고 사용할 필요가 있는지가 분리의 기준**이었습니다.
+
+다만 테이블 분리와 전체 이력 누적은 아직 별개의 단계입니다. 현재 API는 클라이언트가 보내는 최근 최대 10개 기록 배열에 맞춰 기존 `cycle_records`를 삭제하고 다시 삽입합니다. 모든 기록을 계속 보관하려면 완료된 기록 한 건을 추가하는 방식으로 API와 클라이언트를 변경해야 합니다. `averageAdherenceRate`도 현재는 `cycle_settings`의 컬럼으로 유지하며, 조회 시 원본 기록에서 계산하는 방식으로 전환한 상태는 아닙니다.
+</Collapse>
+
+### 객체를 어떻게 저장할지와 어느 테이블에 둘지는 각각 결정
+
+`autoStartSetting` 같은 중첩 객체를 옮길 때는 다음 두 가지를 각각 결정할 수 있습니다.
+
+1. **한 컬럼에 담을 것인가, 여러 컬럼으로 풀 것인가?** 객체 전체를 JSONB 컬럼 하나에 저장하거나, 내부의 자동 시작 설정값 3개를 각각 boolean 컬럼으로 만들 수 있습니다.
+2. **그 컬럼들을 `users`에 둘 것인가, 별도 설정 테이블에 둘 것인가?** JSONB를 선택했든 boolean 컬럼 3개를 선택했든, 사용자 정보와 같은 행에 저장할 수도 있고 별도 테이블의 행에 저장할 수도 있습니다.
+
+예를 들어 사용자별 설정을 담는 `user_settings` 테이블을 만든다고 가정하면, 다음 네 조합이 모두 가능합니다.
+
+| 설정값을 담는 방식 | `users`에 저장 | 별도 `user_settings`에 저장 |
+| --- | --- | --- |
+| JSONB | 사용자 행의 `autoStartSetting` 컬럼에 객체 저장 | 설정 행의 `autoStartSetting` 컬럼에 객체 저장 |
+| 평탄화 | 사용자 행의 boolean 컬럼 3개에 저장 **(현재 구현)** | 설정 행의 boolean 컬럼 3개에 저장 |
+
+별도 테이블을 만든다면 설정 행에 `userId`를 두어 어느 사용자의 설정인지 연결합니다. 이 컬럼을 `users.id`를 참조하는 외래 키이자 기본 키로 정의하면, 같은 사용자의 설정 행이 여러 개 생기는 것도 막을 수 있습니다.
+
+따라서 `autoStartSetting`을 boolean 컬럼 3개로 풀었다고 해서 반드시 `users`에 두어야 하는 것은 아닙니다. 나중에 사용자 정보와 설정을 따로 관리하기로 하면, 그 컬럼 3개를 그대로 `user_settings`로 옮길 수 있습니다. JSONB로 저장한 타이머 상태 역시 객체 구조를 유지한 채 별도 타이머 상태 테이블로 옮길 수 있습니다.
+
+이 예시의 테이블 분리는 사용자 한 명의 설정 묶음을 별도 행에 두는 1:1 분리입니다. 앞의 `cycleStat`처럼 배열의 각 기록을 여러 행으로 만드는 1:N 분리와는 구분해야 합니다. 현재 자동 시작 옵션 컬럼 3개, `goals`, `timersStates`, `currentCycleInfo` 등은 `users`에 남아 있습니다. 이 데이터를 사용자별 설정·타이머 상태 테이블로 옮기는 것은 향후 검토 사항입니다.
+
+### 결정한 구조로 데이터를 이관한 방법
+
+위 구조에 맞춰 변환 스크립트를 작성했습니다.
+
+- 사용자를 먼저 PostgreSQL에 저장하고, 이메일로 새 사용자 UUID를 찾을 수 있는 매핑을 만들었습니다. 예를 들어 기존 사이클 설정 문서의 `userEmail`로 이 매핑을 조회한 뒤, 찾은 UUID를 `cycle_settings.userId`에 넣었습니다.
+- 다른 문서의 ObjectId를 참조하던 필드에도 같은 방법을 사용했습니다. 카테고리를 옮길 때 기존 ObjectId와 새 카테고리 UUID를 매핑해 두고, Pomodoro 기록이 가리키던 ObjectId를 새 UUID로 바꾸어 `pomodoros.categoryId`에 넣었습니다. 기존 문서 간 연결을 새 테이블의 외래 키로 다시 연결한 것입니다.
+- `autoStartSetting`과 `pomoSetting`은 내부 값을 꺼내 개별 컬럼에 넣고, `cycleStat`은 생성된 사이클 설정의 ID를 붙여 여러 행으로 저장했습니다.
+- JSONB도 기존 객체를 그대로 복사하지 않고 필요한 필드를 골라 새 객체를 만들었습니다. 예를 들어 `timersStates.pause.record`의 각 요소에서는 `start`와 `end`만 가져왔습니다. 이 구간들을 별도 문서로 식별하는 데 사용하지 않는 MongoDB의 `_id`는 옮기지 않았습니다. 값이 누락된 경우에는 `timersStates.running`에 `false`, 일시정지 구간 배열에 `[]`를 넣는 식으로 기본값을 적용했습니다.
+- 과거 Pomodoro 기록과 대응하는 세션을 찾을 수 없는 경우에는 `timerSessionId`를 `NULL`로 남겼습니다.
