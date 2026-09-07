@@ -256,7 +256,6 @@ flowchart TD
     style Google fill:#e76f51,stroke:#f4a261,color:#fff
     style Firebase fill:#e76f51,stroke:#f4a261,color:#fff
     style Todoist fill:#e76f51,stroke:#f4a261,color:#fff
-    style STUN fill:#e76f51,stroke:#f4a261,color:#fff
 ```
 
 ### Container Diagram (C2)
@@ -277,7 +276,7 @@ flowchart TD
         direction LR
         Frontend("<b>프론트엔드</b><br>[React SPA + mediasoup-client(full-ICE)]")
         Backend("<b>백엔드 API</b><br>[NestJS: REST + Signaling(Socket.IO) + Mediasoup SFU(ICE-lite)]")
-        Database("<b>데이터베이스</b><br>[MongoDB Atlas]")
+        Database("<b>데이터베이스</b><br>[PostgreSQL + Drizzle ORM]")
     end
 
     User -- "사용" --> Frontend
@@ -363,7 +362,7 @@ erDiagram
         %% 외부 서비스 및 클라이언트 정의
         Frontend["Frontend (React / mediasoup-client / socket.io-client)"]
         FirebaseAuth["Firebase Auth (External Auth Service)"]
-        MongoDB[("MongoDB (Mongoose Database)")]
+        Postgres[("PostgreSQL (Drizzle ORM)")]
 
         %% 백엔드 API (서브그래프 중첩 제거)
         subgraph Backend ["Backend API (NestJS Container)"]
@@ -386,7 +385,7 @@ erDiagram
         Gateway -->|Query RTP Capabilities| MediasoupSvc
 
         GroupService -->|4. Delegate Transport Creation| MediasoupSvc
-        GroupService -->|1. DB에서 방 메타데이터 조회| MongoDB
+        GroupService -->|1. DB에서 방 메타데이터 조회| Postgres
         GroupService -->|2. 획득한 데이터로 Room 객체 동적 생성| RoomEntity
 
         GroupService -->|Manage State| RoomEntity
@@ -403,7 +402,7 @@ erDiagram
         style MediasoupSvc fill:#e76f51,stroke:#264653,color:#fff
         style RoomEntity fill:#e9c46a,stroke:#264653,color:#000
         style PeerEntity fill:#e9c46a,stroke:#264653,color:#000
-        style MongoDB fill:#4f772d,stroke:#31572c,color:#fff
+        style Postgres fill:#4f772d,stroke:#31572c,color:#fff
 ```
 
 ## Page Screenshots
