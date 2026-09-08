@@ -3,6 +3,8 @@ sidebar_position: 1
 slug: /
 ---
 
+import DiagramPopout from "../src/components/DiagramPopout"
+
 # Overview
 
 <!--이거 어떤 회사 공고에서 자기가 만든건지 뭐 기여도같은거 명시하라고 해서 적었던 것임. -->
@@ -224,6 +226,8 @@ slug: /
 
 <!-- (여기에 C1 다이어그램 삽입) -->
 
+<DiagramPopout>
+
 ```mermaid
 flowchart TD
     %% --- 노드 정의 ---
@@ -258,9 +262,13 @@ flowchart TD
     style Todoist fill:#e76f51,stroke:#f4a261,color:#fff
 ```
 
+</DiagramPopout>
+
 ### Container Diagram (C2)
 
 위 시스템을 확대한 다이어그램입니다. '뽀모도로 앱'이 어떤 기술적인 컨테이너들(웹 애플리케이션, API 서버, 데이터베이스 등)로 구성되어 있는지 보여줍니다.
+
+<DiagramPopout>
 
 ```mermaid
 flowchart TD
@@ -282,8 +290,10 @@ flowchart TD
     User -- "사용" --> Frontend
     Frontend -- "API 요청<br>[HTTPS/REST]" --> Backend
     Frontend -- "시그널링<br>[Socket.IO]" --> Backend
-    Frontend -- "미디어 스트림<br>[WebRTC/RTP]" --> Backend
+    Frontend -- "미디어 업스트림 (내 영상)<br>[WebRTC/RTP]" --> Backend
+    Backend -- "미디어 다운스트림 (다른 참가자 영상)<br>[WebRTC/RTP]" --> Frontend
     Frontend -- "OAuth 2.0 인증" --> Google
+    Frontend -- "OAuth 동의 화면으로 리다이렉트" --> Todoist
     Backend -- "ID 토큰 검증" --> Firebase
     Backend -- "데이터 Read/Write" --> Database
     Backend -- "할 일 목록 동기화<br>[REST API]" --> Todoist
@@ -296,6 +306,8 @@ flowchart TD
     style Firebase fill:#e76f51,stroke:#f4a261,color:#fff
     style Todoist fill:#e76f51,stroke:#f4a261,color:#fff
 ```
+
+</DiagramPopout>
 
 <!-- ![architecture](./img/architecture.png) -->
 
@@ -357,6 +369,8 @@ erDiagram
 
 ### Component Diagram (C3)
 
+<DiagramPopout>
+
 ```mermaid
     flowchart TD
         %% 외부 서비스 및 클라이언트 정의
@@ -365,11 +379,14 @@ erDiagram
         Postgres[("PostgreSQL (Drizzle ORM)")]
 
         %% 백엔드 API (서브그래프 중첩 제거)
-        subgraph Backend ["Backend API (NestJS Container)"]
+        subgraph Backend ["Backend API (NestJS Container) - 그룹 스터디(실시간) 부분"]
             Gateway["SignalingGateway (signaling module)"]
             GroupService["GroupStudyManagementService (group-study-management module)"]
-            MediasoupSvc["MediasoupService (mediasoup module)"]
+            MediasoupSvc["MediasoupService (mediasoup module)<br/>worker / router 소유"]
         end
+
+        %% 같은 컨테이너 안의 REST 부분 (이 다이어그램의 상세 대상은 아님)
+        Rest["REST API 모듈<br/>users · categories · cycle-setting<br/>pomodoros · today-records · todoist"]
 
         %% 인메모리 상태 세션 (별도 서브그래프로 분리)
         subgraph Memory ["In-Memory Session States"]
@@ -378,21 +395,28 @@ erDiagram
         end
 
         %% 연결선 정의 (가장 표준적인 -->|라벨| 문법 사용)
-        Frontend -->|1. Socket Connection and Signaling| Gateway
-        Gateway -.->|2. Verify Token| FirebaseAuth
+        %% [A] 클라이언트 요청 처리 흐름
+        Frontend -->|1. 소켓 연결 요청 및 시그널링| Gateway
+        Gateway -.->|2. handshake 단계에서 ID 토큰 검증| FirebaseAuth
 
         Gateway -->|3. Delegate Logic| GroupService
         Gateway -->|Query RTP Capabilities| MediasoupSvc
 
         GroupService -->|4. Delegate Transport Creation| MediasoupSvc
-        GroupService -->|1. DB에서 방 메타데이터 조회| Postgres
-        GroupService -->|2. 획득한 데이터로 Room 객체 동적 생성| RoomEntity
+
+        %% [B] 서버 시작 시 한 번 일어나는 흐름 (위 번호와 별개)
+        GroupService -->|"서버 시작 시 - DB에서 방 메타데이터 조회"| Postgres
+        GroupService -->|"서버 시작 시 - 조회한 데이터로 Room 객체 생성"| RoomEntity
 
         GroupService -->|Manage State| RoomEntity
         GroupService -->|Manage State| PeerEntity
         RoomEntity -->|Map Active Peers| PeerEntity
 
-        MediasoupSvc -->|WebRTC / RTP Media Stream| Frontend
+        MediasoupSvc -->|"RTP 미디어 중계 - mediasoup worker와 브라우저 사이"| Frontend
+
+        %% [C] REST 부분 (같은 컨테이너, 상세는 생략)
+        Frontend -->|"REST 요청 (HTTPS)"| Rest
+        Rest -->|"Drizzle ORM"| Postgres
 
         %% 스타일 정의 (가장 호환성 높은 속성만 사용)
         style Frontend fill:#264653,stroke:#2a9d8f,color:#fff
@@ -403,7 +427,68 @@ erDiagram
         style RoomEntity fill:#e9c46a,stroke:#264653,color:#000
         style PeerEntity fill:#e9c46a,stroke:#264653,color:#000
         style Postgres fill:#4f772d,stroke:#31572c,color:#fff
+        style Rest fill:#6c757d,stroke:#343a40,color:#fff
 ```
+
+</DiagramPopout>
+
+### 미디어 전송 구조 (SFU)
+
+위 다이어그램들이 "무엇으로 구성되어 있는지"를 보여준다면, 이 그림은 런타임에 **미디어가 실제로 흐르는 모양**을 보여줍니다. 참가자가 3명인 방을 기준으로 그렸습니다.
+
+<DiagramPopout>
+
+```mermaid
+flowchart LR
+    subgraph Up["참가자 3명 · 송신 관점"]
+        direction TB
+        A1["Peer A<br/>sendTransport 1"]
+        B1["Peer B<br/>sendTransport 1"]
+        C1["Peer C<br/>sendTransport 1"]
+    end
+
+    subgraph SFU["mediasoup SFU (worker 1 / router 1 - 모든 방이 공유)"]
+        direction TB
+        P["Producer 3개<br/>참가자당 1개"]
+        F["선택적 포워딩<br/>재인코딩 없음<br/>수신자 대역폭에 맞춰 레이어만 선택"]
+        K["Consumer 6개<br/>3 x (3 - 1)"]
+        P --> F --> K
+    end
+
+    subgraph Down["같은 참가자 3명 · 수신 관점"]
+        direction TB
+        A2["Peer A<br/>recvTransport 1<br/>B, C를 소비"]
+        B2["Peer B<br/>recvTransport 1<br/>A, C를 소비"]
+        C2["Peer C<br/>recvTransport 1<br/>A, B를 소비"]
+    end
+
+    A1 -- "업스트림 1개<br/>VP8 simulcast L0(1/4) · L1(1/2) · L2(원본)" --> P
+    B1 -- "업스트림 1개" --> P
+    C1 -- "업스트림 1개" --> P
+
+    K -- "다운스트림 2개" --> A2
+    K -- "다운스트림 2개" --> B2
+    K -- "다운스트림 2개" --> C2
+
+    style A1 fill:#264653,stroke:#2a9d8f,color:#fff
+    style B1 fill:#264653,stroke:#2a9d8f,color:#fff
+    style C1 fill:#264653,stroke:#2a9d8f,color:#fff
+    style A2 fill:#264653,stroke:#2a9d8f,color:#fff
+    style B2 fill:#264653,stroke:#2a9d8f,color:#fff
+    style C2 fill:#264653,stroke:#2a9d8f,color:#fff
+    style P fill:#2a9d8f,stroke:#264653,color:#fff
+    style F fill:#e76f51,stroke:#264653,color:#fff
+    style K fill:#e9c46a,stroke:#264653,color:#000
+```
+
+</DiagramPopout>
+
+왼쪽과 오른쪽은 **같은 참가자 3명**이며, 한 사람이 동시에 송신자이자 수신자라는 점을 화살표가 겹치지 않게 나눠 그린 것입니다.
+
+- **업스트림 3개, 다운스트림 6개**라는 비대칭이 SFU의 핵심입니다. P2P라면 각 참가자가 나머지 모두에게 직접 보내야 해서 1인당 N-1개를 업로드해야 하지만, SFU에서는 **한 번만 올리고 복제는 서버가** 합니다. 업로드 대역폭이 참가자 수에 비례해 늘어나지 않습니다.
+- 대신 서버는 **재인코딩을 하지 않습니다.** 그래서 수신자별 화질 조절은 서버가 새로 만들어내는 것이 아니라, 송신자가 미리 올려둔 simulcast 레이어 중 하나를 고르는 방식으로 이뤄집니다. 요청한 화질과 실제 전달되는 화질이 어긋날 수 있는 이유이기도 합니다([관련 문제 해결](https://pomodoro-doc.vercel.app/problem-solving#webrtc-수신-화질-요청과-실제의-괴리-다루기)).
+- 미디어는 UDP로, 시그널링(Socket.IO)은 TCP로 흐르며 서로 독립적으로 끊길 수 있습니다. 이 점을 다룬 내용은 [WebRTC Disconnection Handling](https://pomodoro-doc.vercel.app/problem-solving#webrtc-disconnection-handling)에 있습니다.
+- 현재 화면 공유는 영상만 전송합니다(`getUserMedia({ video: true, audio: false })`). 또한 mediasoup worker와 router를 각각 하나만 두고 모든 방이 공유하므로, 방이 늘어나면 방별 router 분리가 필요합니다.
 
 ## Page Screenshots
 
