@@ -63,7 +63,9 @@ Pomodoro 기법을 기반으로 집중·휴식 시간을 관리하고, 통계·�
 `/pdfs/pomodoro-portfolio.pdf`를 새 탭으로 엽니다. 생성에 성공한 전체 PDF는
 `static/pdfs/`에도 저장하므로 `npm start`와 `npm run serve` 양쪽에서 열립니다.
 개발 서버에서는 마지막으로 빌드한 PDF를 제공합니다. 문서 수정 사항을 PDF에
-반영하려면 다시 빌드하세요. 새로 받은 저장소에서는 최초 PDF 빌드가 필요합니다.
+반영하려면 로컬에서 다시 빌드한 뒤 `static/pdfs/pomodoro-portfolio.pdf`를 커밋하세요.
+Vercel 빌드 환경에는 Chrome 실행에 필요한 라이브러리와 Java가 없으므로,
+Vercel 환경변수에 `BUILD_PDF=0`을 설정해 커밋된 PDF를 그대로 배포합니다.
 
 빌드 환경에는 Java (`java`가 PATH에 있어야 함), Chromium/Chrome 및 한글
 폰트가 필요합니다. 기존 Chrome을 사용하는 경우
