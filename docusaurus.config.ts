@@ -29,7 +29,36 @@ const config: Config = {
     locales: ["en"],
   },
 
-  plugins: ["docusaurus-plugin-zooming"],
+  plugins: [
+    "docusaurus-plugin-zooming",
+    [
+      "./plugins/portfolio-pdf/index.cjs",
+      {
+        sidebarNames: ["tutorialSidebar"],
+        includeDocs: ["introduction", "database", "problem-solving"],
+        ignoreDocs: [],
+        autoBuildPdfs: true,
+        addDownloadButton: false,
+        author: "송용환",
+        productTitles: ["Pomodoro Portfolio"],
+        puppeteerTimeout: 120000,
+        stylesheets: ["/pdf-assets/print.css"],
+        alwaysIncludeSiteStyles: true,
+        scripts: ["/pdf-assets/ready.js"],
+        ignoreCssSelectors: [".pdf-download", ".diagram-popout__hint"],
+        margins: {top: "18mm", right: "15mm", bottom: "18mm", left: "15mm"},
+        coverMargins: {top: "0", right: "0", bottom: "0", left: "0"},
+        coverPageHeader: "<span></span>",
+        coverPageFooter: "<span></span>",
+        getPdfCoverPage: () => `<html lang="ko"><meta charset="utf-8"><title>Pomodoro Portfolio</title><body style="font-family:sans-serif;padding:55mm 20mm;color:#243b32"><div style="margin-bottom:38px"><p style="margin:0;font-size:22px;font-weight:700">송용환</p><p style="margin:5px 0 0;color:#6b7973;font-size:12px;letter-spacing:0.08em">YONGHWAN SONG</p></div><h1 style="font-size:38px">Pomodoro Portfolio</h1><p>프로젝트 소개 · 데이터베이스 · 문제 해결</p><p>https://pomodoro-doc.vercel.app</p><p>${new Date().toISOString().slice(0, 10)}</p></body></html>`,
+        getPdfPageHeader: () => "<span></span>",
+        getPdfPageFooter: () => `<div style="font-family:sans-serif;font-size:9px;width:100%;text-align:center">Page <span class="pageNumber"></span> / <span class="totalPages"></span></div>`,
+        footerParser: /Page \d+ \/ \d+/g,
+        getPdfFileName: (_site, _options, _title, id, _titles, parents) =>
+          parents.length === 0 ? "pomodoro-portfolio" : id,
+      },
+    ],
+  ],
 
   presets: [
     [
@@ -62,7 +91,7 @@ const config: Config = {
     // Replace with your project's social card
     image: "img/docusaurus-social-card.jpg",
     zooming: {
-      selector: ".markdown img:not(.erd-preview)",
+      selector: ".markdown img:not(.erd-preview):not(.diagram-popout img)",
       delay: 500,
       background: {
         light: "rgba(101,108,133,0.8)",

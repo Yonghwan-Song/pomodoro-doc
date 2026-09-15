@@ -1,0 +1,46 @@
+:root { color-scheme: light; }
+body { color: #222; background: white; font-family: 'Noto Sans CJK KR', sans-serif; font-size: 10pt; line-height: 1.6; }
+article { display: block; }
+article h1 { break-before: page; font-size: 24pt; }
+h2 { font-size: 17pt; } h3 { font-size: 13pt; }
+h1, h2, h3, h4, summary { break-after: avoid; }
+a { color: #196746; text-decoration: none; }
+.pdf-source { font-size: 8pt; color: #555; overflow-wrap: anywhere; }
+.pdf-download, .diagram-popout__hint, .theme-doc-toc-mobile, .theme-doc-breadcrumbs,
+article footer, .hash-link, button, iframe, .playerWrapper { display: none !important; }
+.pdf-video-link { display: block !important; overflow-wrap: anywhere; }
+img { display: block; max-width: 100% !important; max-height: 220mm; width: auto; height: auto; object-fit: contain; break-inside: avoid; margin: 8pt auto; }
+svg { max-width: 100% !important; height: auto; }
+.diagram-popout, .erd-figure { break-inside: avoid; margin: 12pt 0; }
+.diagram-popout__canvas { border: 0; }
+.mermaid { overflow: visible; }
+.mermaid svg { max-height: 220mm; }
+pre, code { font-family: 'Noto Sans Mono CJK KR', monospace; font-size: 8pt; }
+pre { white-space: pre-wrap !important; overflow-wrap: anywhere; overflow: visible !important; padding: 8pt; border: 1px solid #ddd; }
+pre code, .token-line { white-space: pre-wrap !important; overflow-wrap: anywhere; }
+.theme-code-block, .theme-admonition, details { break-inside: auto !important; }
+details > div, [class*='collapsibleContent'] { display: block !important; height: auto !important; overflow: visible !important; }
+summary { font-weight: bold; }
+table { display: table !important; width: 100%; table-layout: fixed; font-size: 9pt; }
+th, td { overflow-wrap: anywhere; border: 1px solid #ccc; padding: 5pt; }
+tr { break-inside: avoid; } thead { display: table-header-group; }
+.card { box-shadow: none; border: 1px solid #ddd; margin-bottom: 10pt; }
+.card__header, .card__body, .card__footer { padding: 8pt; }
+.toc-headings { list-style: none; padding-left: 0; }
+.toc-headings a { display: flex; width: 100%; }
+
+.pdf-details { display: block; margin: 12pt 0; padding: 0 10pt; border-left: 2px solid #b5cfc1; break-inside: auto; }
+.pdf-summary { font-weight: bold; margin-bottom: 6pt; break-after: avoid; }
+.pdf-details [class*='collapsibleContent'] { border: 0; margin: 0; padding: 0; }
+
+/* Docusaurus floats code lines for horizontal scrolling on screen. In paged
+   output this makes later paragraphs wrap into the narrow remaining column. */
+pre code {
+  float: none !important;
+  display: block !important;
+  min-width: 0 !important;
+  width: 100% !important;
+  box-sizing: border-box;
+}
+pre, .theme-code-block, .pdf-details { float: none !important; clear: both; }
+.pdf-details + * { clear: both; }

@@ -1,18 +1,36 @@
-import { useRef } from "react";
+import { useRef, useState } from "react";
 
-// mermaid로 렌더된 SVG를 그대로 새 탭에서 열어 원본 크기로 볼 수 있게 하는 wrapper.
-// ERD처럼 미리 만들어 둔 이미지 파일을 링크하는 대신, 화면에 이미 그려진 SVG를
-// 직렬화해서 Blob URL로 열기 때문에 다이어그램 원본(mermaid 코드)만 관리하면 된다.
+// Rendered Mermaid SVGs and image assets share an isolated print preview.
 export default function DiagramPopout(props) {
-  const { children, hint = "다이어그램을 클릭하면 새 탭에서 크게 볼 수 있습니다." } = props;
+  const {
+    children,
+    hint = "다이어그램을 클릭하면 새 탭에서 확대하거나 인쇄할 수 있습니다.",
+  } = props;
   const containerRef = useRef(null);
+  const [error, setError] = useState("");
 
   const openInNewTab = () => {
-    const svg = containerRef.current?.querySelector("svg");
-    if (!svg) return;
+    const svg = containerRef.current?.querySelector("svg, img");
+    if (!svg) {
+      setError("다이어그램 로딩 후 다시 시도해 주세요.");
+      return;
+    }
+    const preview = window.open("about:blank", "_blank");
+    if (!preview) {
+      setError("새 탭이 차단되었습니다. 팝업을 허용한 뒤 다시 시도해 주세요.");
+      return;
+    }
+    preview.opener = null;
+    setError("");
 
     const clone = svg.cloneNode(true);
-    clone.setAttribute("xmlns", "http://www.w3.org/2000/svg");
+    if (svg.tagName.toLowerCase() === "svg") {
+      clone.setAttribute("xmlns", "http://www.w3.org/2000/svg");
+    } else {
+      clone.src = svg.currentSrc || svg.src;
+      clone.removeAttribute("srcset");
+      clone.removeAttribute("loading");
+    }
 
     // 화면에서는 폭에 맞춰 축소되어 있으므로, 새 탭에서는 그 제한을 풀어준다.
     if (clone.getAttribute("viewBox")) {
@@ -38,13 +56,55 @@ export default function DiagramPopout(props) {
       !resolved || resolved === "transparent" || /,\s*0\)$/.test(resolved);
     clone.style.background = isTransparent ? "#ffffff" : resolved;
 
-    const blob = new Blob([new XMLSerializer().serializeToString(clone)], {
-      type: "image/svg+xml;charset=utf-8",
-    });
-    const url = URL.createObjectURL(blob);
-    window.open(url, "_blank", "noopener,noreferrer");
-    // 새 탭이 blob을 읽기 전에 해제하면 빈 화면이 되므로 잠시 뒤에 정리한다.
-    setTimeout(() => URL.revokeObjectURL(url), 60000);
+    const doc = preview.document;
+    doc.documentElement.lang = "ko";
+    doc.title = "다이어그램 인쇄";
+    const style = doc.createElement("style");
+    style.textContent = `
+      body { margin: 0; background: #fff; font-family: sans-serif; }
+      header { padding: 16px; background: #f4f4f4; color: #222; }
+      button { padding: 10px 16px; cursor: pointer; font: inherit; }
+      p { margin: 12px 0 0; }
+      main { padding: 16px; }
+      main > svg, main > img { display: block; width: 100%; height: auto; }
+      @page { size: A4 landscape; margin: 10mm; }
+      @media print {
+        header { display: none; }
+        main { padding: 0; height: 185mm; break-inside: avoid; }
+        main > svg, main > img {
+          width: 100% !important; height: 100% !important;
+          max-width: 100% !important; max-height: 100%; object-fit: contain;
+          print-color-adjust: exact; -webkit-print-color-adjust: exact;
+        }
+      }
+    `;
+    doc.head.appendChild(style);
+    const header = doc.createElement("header");
+    const button = doc.createElement("button");
+    button.textContent = "인쇄 / PDF 저장";
+    button.disabled = true;
+    button.addEventListener("click", () => preview.print());
+    const help = doc.createElement("p");
+    help.textContent =
+      "A4 가로 인쇄에 맞춰져 있습니다. 큰 다이어그램은 A3 용지나 배율 설정을 이용하세요.";
+    header.append(button, help);
+    const main = doc.createElement("main");
+    clone.setAttribute("preserveAspectRatio", "xMidYMid meet");
+    main.appendChild(doc.importNode(clone, true));
+    doc.body.append(header, main);
+    const ready = async () => {
+      try {
+        await Promise.all(
+          Array.from(main.querySelectorAll("img"), (img) => img.decode()),
+        );
+        await doc.fonts.ready;
+        if (!preview.closed) button.disabled = false;
+      } catch {
+        help.textContent =
+          "이미지를 불러오지 못했습니다. 이 탭을 닫고 다시 시도해 주세요.";
+      }
+    };
+    ready();
   };
 
   const handleKeyDown = (event) => {
@@ -67,7 +127,10 @@ export default function DiagramPopout(props) {
       >
         {children}
       </div>
-      <figcaption className="diagram-popout__hint">{hint}</figcaption>
+      <figcaption className="diagram-popout__hint">
+        {hint}
+        {error && <span role="alert">{error}</span>}
+      </figcaption>
     </figure>
   );
 }

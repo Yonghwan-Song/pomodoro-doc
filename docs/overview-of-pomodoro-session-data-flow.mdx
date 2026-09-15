@@ -3,6 +3,8 @@ sidebar_label: "Data Flow"
 sidebar_position: 5
 ---
 
+import DiagramPopout from "../src/components/DiagramPopout";
+
 # Pomodoro session 데이터의 흐름
 
 :::note 작성 시점
@@ -13,7 +15,11 @@ sidebar_position: 5
 
 {/* Overview of Pomodoro Session Data Flow */}
 [Open in a new tab](./img/from-server-to-client-visualization-scale-x-1.svg)
+<DiagramPopout>
+
 ![from-server-to-client-visualization-scale-x-1](./img/from-server-to-client-visualization-scale-x-1.svg)
+
+</DiagramPopout>
 
 ## Server에서 Client로
 
@@ -169,8 +175,16 @@ type DurationRelated = {
 ```
 
 3. Modifier in the `useFetch()`
+   <DiagramPopout>
+
    ![modifier-in-useFetch-1](./img/modifier-in-useFetch-1.svg)
+
+   </DiagramPopout>
+   <DiagramPopout>
+
    ![modifier-in-useFetch-2](./img/modifier-in-useFetch-2.svg)
+
+   </DiagramPopout>
 
 ##### `weekStat`
 
@@ -192,12 +206,24 @@ export type DayStatForGraph = TimeRelated & Partial<DurationRelated>;
 ---
 
 2. <br />
+   <DiagramPopout>
+
    ![useFetch-callbacks](./img/useFetch-callbacks.svg)
 
+   </DiagramPopout>
+
 3. <br />
+   <DiagramPopout>
+
    ![calculateThisWeekData](./img/calculateThisWeekData.svg)
+
+   </DiagramPopout>
    <br />
+   <DiagramPopout>
+
    ![callbacks-are-called-in-useFetch](./img/callbacks-are-called-in-useFetch.svg)
+
+   </DiagramPopout>
 
 #### States in the `StackedGraph` and `CategoryGraph` components
 
@@ -207,6 +233,10 @@ export type DayStatForGraph = TimeRelated & Partial<DurationRelated>;
 
 ---
 
+<DiagramPopout>
+
 ![component-relationship-at-stat](./img/component-relationship-at-stat.svg)
+
+</DiagramPopout>
 
 {/* ## Client에서 Server로 */}

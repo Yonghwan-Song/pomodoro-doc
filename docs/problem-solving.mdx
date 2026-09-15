@@ -350,188 +350,6 @@ BC.addEventListener("message", async (ev) => {
 
 ### [비판적 질문들](./questions.mdx#한-세션이-진행-중일-때pomo-or-break-관계없이-다른-페이지들을-자유롭게-방문할-수-있도록-하는-것) 
 
-## **Category·Task 변경 이력을 결합한 session segmentation** {#session-segmentation}
-
-### 문제 상황
-
-한 focus session 안에서 Category와 Task는 서로 상관없이 바뀝니다. 두 이력은 각자 자기가 바뀐 시각만 기록합니다. 그래서 "이 순간 어떤 (Category, Task) 조합이었는지"를 바로 알 수 없습니다.
-
-여기에 pause가 겹칩니다. pause 중에도 Category와 Task를 바꿀 수 있어서, 세 종류의 이벤트가 시간축 위에서 아무 순서로나 섞입니다.
-
-통계에는 각 조합에 실제로 집중한 시간만 남아야 합니다. 겹치는 구간도, 빠지는 구간도 없이 잘라내야 합니다.
-
-입력은 세 곳에서 옵니다.
-
-| 소스 | 기록 시점 | 저장 위치 |
-| --- | --- | --- |
-| `categoryChangeInfoArray` | Category를 바꿀 때 | Zustand, IndexedDB, PostgreSQL |
-| `taskChangeInfoArray` | Task를 바꿀 때 | Zustand, PostgreSQL |
-| `pause.record` | pause 시작·종료 | 현재 타이머 상태 |
-
-세션이 시작될 때 첫 Category와 Task의 timestamp를 세션 시작 시각으로 맞춥니다. 세션이 끝나면 현재 선택 하나만 남기고 timestamp를 `0`으로 되돌립니다.
-
-### 해결 방식
-
-25분 세션(09:00~09:25)을 예로 들겠습니다. Category가 pause 도중에 바뀌는 경우입니다.
-
-<DiagramPopout>
-
-```mermaid
-gantt
-    title 25분 세션 하나가 (Category, Task) 조합별 segment로 쪼개지는 과정
-    dateFormat HH:mm
-    axisFormat %H:%M
-
-    section Category 이력
-    수학                  :a1, 09:00, 10m
-    영어 (pause 중 변경)   :a2, 09:10, 15m
-
-    section Task 이력
-    미적분 3장             :b1, 09:00, 18m
-    영단어 100개           :b2, 09:18, 7m
-
-    section pause 기록
-    pause                 :crit, c1, 09:08, 4m
-
-    section 결과 segment
-    focus 수학·미적분 8분    :done, d1, 09:00, 8m
-    pause 수학·미적분 2분    :crit, d2, 09:08, 2m
-    pause 영어·미적분 2분    :crit, d3, 09:10, 2m
-    focus 영어·미적분 6분    :done, d4, 09:12, 6m
-    focus 영어·영단어 7분    :done, d5, 09:18, 7m
-```
-
-</DiagramPopout>
-
-세션이 끝나면 [`recordPomo`](https://github.com/Yonghwan-Song/pomodoro/blob/main/client/src/utils/recordPomo.ts)가 세 단계로 변환합니다.
-
-#### 1단계. 세 소스를 같은 모양으로 합친다
-
-`makeTimestampsFromRawData`가 세 배열을 `{ kind, subKind, timestamp }` 형태로 통일해 하나로 합치고, timestamp 순으로 정렬한 뒤 마지막에 세션 종료 시각을 넣습니다. 위 예시는 이렇게 됩니다.
-
-```ts
-{ kind: 'category',     subKind: '수학',         timestamp: 09:00 }
-{ kind: 'task',         subKind: '미적분 3장',    timestamp: 09:00 }
-{ kind: 'pause',        subKind: 'start',        timestamp: 09:08 }
-{ kind: 'category',     subKind: '영어',         timestamp: 09:10 }
-{ kind: 'pause',        subKind: 'end',          timestamp: 09:12 }
-{ kind: 'task',         subKind: '영단어 100개',  timestamp: 09:18 }
-{ kind: 'endOfSession',                          timestamp: 09:25 }
-```
-
-#### 2단계. 한 번 순회하며 구간을 자른다
-
-`makeSegmentsFromTimestamps`는 이벤트를 하나 만날 때마다 **직전 이벤트부터 지금까지**를 segment 하나로 확정하고, 그 다음에 현재 조합(owner)을 새 값으로 바꿉니다.
-
-:::tip 순서가 중요합니다
-
-segment를 먼저 확정하고, owner는 그 다음에 바꿉니다. 반대로 하면 조합이 바뀐 시점 이후의 시간이 이전 조합에 붙습니다.
-
-:::
-
-| # | 구간 | owner (Category, Task) | type | duration |
-| --- | --- | --- | --- | --- |
-| 1 | 09:00 ~ 09:08 | 수학, 미적분 3장 | focus | 8분 |
-| 2 | 09:08 ~ 09:10 | 수학, 미적분 3장 | pause | 2분 |
-| 3 | 09:10 ~ 09:12 | **영어**, 미적분 3장 | pause | 2분 |
-| 4 | 09:12 ~ 09:18 | 영어, 미적분 3장 | focus | 6분 |
-| 5 | 09:18 ~ 09:25 | 영어, 영단어 100개 | focus | 7분 |
-
-2번과 3번이 위 규칙의 결과입니다. Category는 09:10에 바뀌었으므로 09:08~09:10은 아직 수학이고, 영어는 09:10부터입니다.
-
-<Collapse title={"timestamps_to_segments - segment 확정 후 owner 갱신"}>
-```ts
-// client/src/Pages/Main/Category-Related/category-change-utility.ts
-const duration_in_ms = val.timestamp - _array[idx - 1].timestamp;
-
-switch (val.kind) {
-  case 'category':
-    // 1) 직전 구간을 "바뀌기 전" owner로 확정하고
-    acc.segmentDurationArr.push({
-      owner: [acc.currentOwner[0], acc.currentOwner[1]],
-      duration: duration_in_ms,
-      type: acc.currentType,
-      startTime: acc.currentStartTime,
-    });
-    // 2) 그 다음에 owner를 바꾼다
-    acc.currentOwner[0] = val.subKind!;
-    acc.currentStartTime = val.timestamp;
-    break;
-  // task, pause도 같은 순서. pause는 type만 focus <-> pause로 바뀐다.
-}
-```
-</Collapse>
-
-#### 3단계. focus만 합산한다
-
-pause segment는 빼고, 두 가지 기준으로 각각 더합니다.
-
-| 결과 배열 | 합산 기준 | 위 예시의 결과 | 저장 위치 |
-| --- | --- | --- | --- |
-| `pomodoroRecordArr` | (Category, Task) 조합별 | (수학, 미적분) 8분<br/>(영어, 미적분) 6분<br/>(영어, 영단어) 7분 | `pomodoros` 테이블 |
-| `taskTrackingArr` | Task별 | 미적분 3장 14분<br/>영단어 100개 7분 | `todoist_tasks.total_focus_duration`에 누적 |
-
-focus 21분 + pause 4분 = 25분으로, 세션 길이와 맞습니다.
-
-`recordPomo`는 두 배열을 하나의 요청으로 보내고 서버는 두 저장을 한 transaction으로 처리합니다. 같은 함수가 통계 캐시도 갱신하고, 사용자가 스터디 방에 있다면 오늘 총 집중 시간을 소켓으로 알립니다.
-
-`/timer` 밖에서 세션이 끝나는 경우에도 `index.tsx`가 IndexedDB의 Category 이력과 Zustand의 Task 이력을 읽어 같은 함수를 호출합니다. 이름과 일부 주석에 Service Worker가 남아 있지만, countdown은 현재 브라우저 main thread에서 실행됩니다.
-
-:::caution 현재 한계
-
-- TimerSession과 Pomodoro는 별도 요청으로 저장하며, 신규 Pomodoro의 `timer_session_id`는 아직 연결하지 않습니다.
-- 두 파생 배열을 클라이언트가 따로 계산하므로 서버가 서로의 합계를 재검증하지 않습니다.
-- duration을 분 단위로 내림하므로 1분보다 짧은 segment는 저장 결과에서 제외될 수 있습니다.
-
-:::
-
-## **[인터넷 연결이 끊길 때에도 핵심 기능 사용할 수 있게 하기](https://pomodoro-doc.vercel.app/features#network-disconnection-handling)**
-
-### 문제 상황 및 구현하게 된 계기 - 인터넷이 끊긴 동안 사용한 결과는 서버에 저장되지 않는다
-평소에 대학교 도서관에서 작업하는데, 시험기간에 사람이 많이 몰리는 시간에는 인터넷이 간헐적으로 끊겼습니다. 이때 앱을 계속 사용하더라도 서버에 데이터가 보내지지 않기 때문에 나중에 인터넷이 연결된 후 다시 사용할 때 문제가 있었습니다. 예를 들면, 인터넷이 끊긴 상태에서 타이머가 종료되면 그 집중한 시간은 기록되지 않았습니다. 또는 어떤 집중 시간 진행 도중에 인터넷이 끊기고 카테고리를 변경하는 경우 이것은 반영되지 않습니다. 이런 식으로 인터넷이 몇 번씩 끊겼다가 연결되었다가 하면 앱에 대한 사용자 경험 안정성이 근본적으로 저하되었습니다.
-
-### 해결 방식 - request를 보관 후 다시 보내기
-
-- `errController` object를 정의해 이곳에 request를 보관 후 인터넷이 다시 연결되면 서버에 보냈습니다.
-
-- 사용자가 로그아웃하거나 브라우저 탭을 닫은 후 나중에 인터넷이 연결되는 경우
-
-  - `errController`에 있는 request를 indexed db에 저장
-
-  - 앱을 열거나 로그인하면, 그 사용자의 request들을 가져와서 다시 서버로 보냅니다.
-
-#### 데이터 합치기
-
-- patch request는 resource를 변경하는 것이므로 하나로 통합할 수 있습니다.
-
-  - 예를 들면, `/categories` 에대한 patch request는 `Categories` collection에 있는 한 카테고리 object를 수정하는 것이고,
-  - 다시 말하면 그것의 property를 수정하는 것입니다.
-  - *같은 object를 수정하는 request들은 하나로 통합해서 한번 보냅니다.*
-
-  - 여러 개의 category object를 수정하게 되는 경우를 위해 batch URL을 정의
-
-#### 어려웠던 점
-
-category object를 식별하는 방식이 name과 userEmail의 조합의 유일성을 이용하는 것인데,
-
-이름을 바꾸는 patch request때문에 이것을 이용할 수 없었습니다.
-
-그래서 F.E 한정으로 사용하는 _uuid를 batch request의 경우에 한해서 식별자로 사용했습니다.
-
-- 흐름
-  - interceptor에서 `/categories`로 보내지는 patch는 interceptor에서 바로 `errController`에 등록하지 않고 error를 throw
-  - axios patch를 호출한 함수에서 그 error를 catch한 후
-  - _uuid를 넣어서 `errController`에 등록.
-
-#### Service Worker에서 request 보내기
-
-- axios대신 fetch API를 이용하므로 fetch 호출을 try catch block에 넣어서 error를 잡아냅니다.
-
-- Error가 TypError이면 `BroadcastChannel` API를 이용해서 main thread에 데이터를 보냅니다.
-- event handler가 그 데이터를 받아서 `errController`에 저장합니다.
-
-### [비판적 질문들](./questions.mdx#인터넷-연결이-끊길-때에도-핵심-기능-사용할-수-있게-하기) 
-
 ## **Horizontal Timeline 만들기**
 
 ### 문제 상황 및 구현하게 된 계기
@@ -669,6 +487,188 @@ After
 ![after](https://github.com/Yonghwan-Song/pomodoro/assets/72689705/8640f5e8-3024-4ff0-9535-ea9413f94e54)
 
 ### [비판적 질문들](./questions.mdx#horizontal-timeline-만들기) 
+
+## **[인터넷 연결이 끊길 때에도 핵심 기능 사용할 수 있게 하기](https://pomodoro-doc.vercel.app/features#network-disconnection-handling)**
+
+### 문제 상황 및 구현하게 된 계기 - 인터넷이 끊긴 동안 사용한 결과는 서버에 저장되지 않는다
+평소에 대학교 도서관에서 작업하는데, 시험기간에 사람이 많이 몰리는 시간에는 인터넷이 간헐적으로 끊겼습니다. 이때 앱을 계속 사용하더라도 서버에 데이터가 보내지지 않기 때문에 나중에 인터넷이 연결된 후 다시 사용할 때 문제가 있었습니다. 예를 들면, 인터넷이 끊긴 상태에서 타이머가 종료되면 그 집중한 시간은 기록되지 않았습니다. 또는 어떤 집중 시간 진행 도중에 인터넷이 끊기고 카테고리를 변경하는 경우 이것은 반영되지 않습니다. 이런 식으로 인터넷이 몇 번씩 끊겼다가 연결되었다가 하면 앱에 대한 사용자 경험 안정성이 근본적으로 저하되었습니다.
+
+### 해결 방식 - request를 보관 후 다시 보내기
+
+- `errController` object를 정의해 이곳에 request를 보관 후 인터넷이 다시 연결되면 서버에 보냈습니다.
+
+- 사용자가 로그아웃하거나 브라우저 탭을 닫은 후 나중에 인터넷이 연결되는 경우
+
+  - `errController`에 있는 request를 indexed db에 저장
+
+  - 앱을 열거나 로그인하면, 그 사용자의 request들을 가져와서 다시 서버로 보냅니다.
+
+#### 데이터 합치기
+
+- patch request는 resource를 변경하는 것이므로 하나로 통합할 수 있습니다.
+
+  - 예를 들면, `/categories` 에대한 patch request는 `Categories` collection에 있는 한 카테고리 object를 수정하는 것이고,
+  - 다시 말하면 그것의 property를 수정하는 것입니다.
+  - *같은 object를 수정하는 request들은 하나로 통합해서 한번 보냅니다.*
+
+  - 여러 개의 category object를 수정하게 되는 경우를 위해 batch URL을 정의
+
+#### 어려웠던 점
+
+category object를 식별하는 방식이 name과 userEmail의 조합의 유일성을 이용하는 것인데,
+
+이름을 바꾸는 patch request때문에 이것을 이용할 수 없었습니다.
+
+그래서 F.E 한정으로 사용하는 _uuid를 batch request의 경우에 한해서 식별자로 사용했습니다.
+
+- 흐름
+  - interceptor에서 `/categories`로 보내지는 patch는 interceptor에서 바로 `errController`에 등록하지 않고 error를 throw
+  - axios patch를 호출한 함수에서 그 error를 catch한 후
+  - _uuid를 넣어서 `errController`에 등록.
+
+#### Service Worker에서 request 보내기
+
+- axios대신 fetch API를 이용하므로 fetch 호출을 try catch block에 넣어서 error를 잡아냅니다.
+
+- Error가 TypError이면 `BroadcastChannel` API를 이용해서 main thread에 데이터를 보냅니다.
+- event handler가 그 데이터를 받아서 `errController`에 저장합니다.
+
+### [비판적 질문들](./questions.mdx#인터넷-연결이-끊길-때에도-핵심-기능-사용할-수-있게-하기) 
+
+## **Category·Task 변경 이력을 결합한 session segmentation** {#session-segmentation}
+
+### 문제 상황
+
+한 focus session 안에서 Category와 Task는 서로 상관없이 바뀝니다. 두 이력은 각자 자기가 바뀐 시각만 기록합니다. 그래서 "이 순간 어떤 (Category, Task) 조합이었는지"를 바로 알 수 없습니다.
+
+여기에 pause가 겹칩니다. pause 중에도 Category와 Task를 바꿀 수 있어서, 세 종류의 이벤트가 시간축 위에서 아무 순서로나 섞입니다.
+
+통계에는 각 조합에 실제로 집중한 시간만 남아야 합니다. 겹치는 구간도, 빠지는 구간도 없이 잘라내야 합니다.
+
+입력은 세 곳에서 옵니다.
+
+| 소스 | 기록 시점 | 저장 위치 |
+| --- | --- | --- |
+| `categoryChangeInfoArray` | Category를 바꿀 때 | Zustand, IndexedDB, PostgreSQL |
+| `taskChangeInfoArray` | Task를 바꿀 때 | Zustand, PostgreSQL |
+| `pause.record` | pause 시작·종료 | 현재 타이머 상태 |
+
+세션이 시작될 때 첫 Category와 Task의 timestamp를 세션 시작 시각으로 맞춥니다. 세션이 끝나면 현재 선택 하나만 남기고 timestamp를 `0`으로 되돌립니다.
+
+### 해결 방식
+
+25분 세션(09:00~09:25)을 예로 들겠습니다. Category가 pause 도중에 바뀌는 경우입니다.
+
+<DiagramPopout>
+
+```mermaid
+gantt
+    title 25분 세션 하나가 (Category, Task) 조합별 segment로 쪼개지는 과정
+    dateFormat HH:mm
+    axisFormat %H:%M
+
+    section Category 이력
+    수학                  :a1, 09:00, 10m
+    영어 (pause 중 변경)   :a2, 09:10, 15m
+
+    section Task 이력
+    미적분 3장             :b1, 09:00, 18m
+    영단어 100개           :b2, 09:18, 7m
+
+    section pause 기록
+    pause                 :crit, c1, 09:08, 4m
+
+    section 결과 segment
+    focus 수학·미적분 8분    :done, d1, 09:00, 8m
+    pause 수학·미적분 2분    :crit, d2, 09:08, 2m
+    pause 영어·미적분 2분    :crit, d3, 09:10, 2m
+    focus 영어·미적분 6분    :done, d4, 09:12, 6m
+    focus 영어·영단어 7분    :done, d5, 09:18, 7m
+```
+
+</DiagramPopout>
+
+세션이 끝나면 [`recordPomo`](https://github.com/Yonghwan-Song/pomodoro/blob/main/client/src/utils/recordPomo.ts)가 세 단계로 변환합니다.
+
+#### 1단계. 세 소스를 같은 모양으로 합친다
+
+`makeTimestampsFromRawData`가 세 배열을 `{ kind, subKind, timestamp }` 형태로 통일해 하나로 합치고, timestamp 순으로 정렬한 뒤 마지막에 세션 종료 시각을 넣습니다. 위 예시는 이렇게 됩니다.
+
+```ts
+{ kind: 'category',     subKind: '수학',         timestamp: 09:00 }
+{ kind: 'task',         subKind: '미적분 3장',    timestamp: 09:00 }
+{ kind: 'pause',        subKind: 'start',        timestamp: 09:08 }
+{ kind: 'category',     subKind: '영어',         timestamp: 09:10 }
+{ kind: 'pause',        subKind: 'end',          timestamp: 09:12 }
+{ kind: 'task',         subKind: '영단어 100개',  timestamp: 09:18 }
+{ kind: 'endOfSession',                          timestamp: 09:25 }
+```
+
+#### 2단계. 한 번 순회하며 구간을 자른다
+
+`makeSegmentsFromTimestamps`는 이벤트를 하나 만날 때마다 **직전 이벤트부터 지금까지**를 segment 하나로 확정하고, 그 다음에 현재 조합(owner)을 새 값으로 바꿉니다.
+
+:::tip 순서가 중요합니다
+
+segment를 먼저 확정하고, owner는 그 다음에 바꿉니다. 반대로 하면 조합이 바뀐 시점 이후의 시간이 이전 조합에 붙습니다.
+
+:::
+
+| # | 구간 | owner (Category, Task) | type | duration |
+| --- | --- | --- | --- | --- |
+| 1 | 09:00 ~ 09:08 | 수학, 미적분 3장 | focus | 8분 |
+| 2 | 09:08 ~ 09:10 | 수학, 미적분 3장 | pause | 2분 |
+| 3 | 09:10 ~ 09:12 | **영어**, 미적분 3장 | pause | 2분 |
+| 4 | 09:12 ~ 09:18 | 영어, 미적분 3장 | focus | 6분 |
+| 5 | 09:18 ~ 09:25 | 영어, 영단어 100개 | focus | 7분 |
+
+2번과 3번이 위 규칙의 결과입니다. Category는 09:10에 바뀌었으므로 09:08~09:10은 아직 수학이고, 영어는 09:10부터입니다.
+
+<Collapse title={"timestamps_to_segments - segment 확정 후 owner 갱신"}>
+```ts
+// client/src/Pages/Main/Category-Related/category-change-utility.ts
+const duration_in_ms = val.timestamp - _array[idx - 1].timestamp;
+
+switch (val.kind) {
+  case 'category':
+    // 1) 직전 구간을 "바뀌기 전" owner로 확정하고
+    acc.segmentDurationArr.push({
+      owner: [acc.currentOwner[0], acc.currentOwner[1]],
+      duration: duration_in_ms,
+      type: acc.currentType,
+      startTime: acc.currentStartTime,
+    });
+    // 2) 그 다음에 owner를 바꾼다
+    acc.currentOwner[0] = val.subKind!;
+    acc.currentStartTime = val.timestamp;
+    break;
+  // task, pause도 같은 순서. pause는 type만 focus <-> pause로 바뀐다.
+}
+```
+</Collapse>
+
+#### 3단계. focus만 합산한다
+
+pause segment는 빼고, 두 가지 기준으로 각각 더합니다.
+
+| 결과 배열 | 합산 기준 | 위 예시의 결과 | 저장 위치 |
+| --- | --- | --- | --- |
+| `pomodoroRecordArr` | (Category, Task) 조합별 | (수학, 미적분) 8분<br/>(영어, 미적분) 6분<br/>(영어, 영단어) 7분 | `pomodoros` 테이블 |
+| `taskTrackingArr` | Task별 | 미적분 3장 14분<br/>영단어 100개 7분 | `todoist_tasks.total_focus_duration`에 누적 |
+
+focus 21분 + pause 4분 = 25분으로, 세션 길이와 맞습니다.
+
+`recordPomo`는 두 배열을 하나의 요청으로 보내고 서버는 두 저장을 한 transaction으로 처리합니다. 같은 함수가 통계 캐시도 갱신하고, 사용자가 스터디 방에 있다면 오늘 총 집중 시간을 소켓으로 알립니다.
+
+`/timer` 밖에서 세션이 끝나는 경우에도 `index.tsx`가 IndexedDB의 Category 이력과 Zustand의 Task 이력을 읽어 같은 함수를 호출합니다. 이름과 일부 주석에 Service Worker가 남아 있지만, countdown은 현재 브라우저 main thread에서 실행됩니다.
+
+:::caution 현재 한계
+
+- TimerSession과 Pomodoro는 별도 요청으로 저장하며, 신규 Pomodoro의 `timer_session_id`는 아직 연결하지 않습니다.
+- 두 파생 배열을 클라이언트가 따로 계산하므로 서버가 서로의 합계를 재검증하지 않습니다.
+- duration을 분 단위로 내림하므로 1분보다 짧은 segment는 저장 결과에서 제외될 수 있습니다.
+
+:::
 
 ## **시그널링 채널 설계: Socket.IO를 요청-응답 채널로 쓰기**
 
@@ -943,6 +943,125 @@ sequenceDiagram
 </DiagramPopout>
 
 `INTENT_TO_CONSUME` 단계에서 capabilities를 다시 보내지 않는 이유는, 1단계에서 서버가 이미 `peer.rtpCapabilities`로 캐싱해두었기 때문입니다. Capability는 세션당 한 번만 교환하고, 이후에는 서버가 계속 재사용하는 구조입니다.
+
+## **WebRTC 수신 화질: 요청과 실제의 괴리 다루기**
+
+### 문제 상황
+
+- mediasoup는 트랜스코딩(재인코딩) 없이 패킷을 그대로 중계하는 SFU입니다. 송신자가 하나의 화질로만 스트림을 올리면, 서버는 수신자 각각의 네트워크 상태에 맞춰 화질을 새로 만들어낼 수 없고 패킷을 버리는 것 말고는 할 수 있는 일이 없습니다.
+- 이를 해결하기 위해 송신자가 여러 해상도(spatial layer)를 동시에 인코딩해서 올리는 [Simulcast](https://mediasoup.org/documentation/v3/mediasoup/simulcast/)를 도입해, 서버가 수신자별로 적절한 해상도를 골라 전달할 수 있도록 했습니다.
+- 문제는 여기서 발생했습니다. 사용자가 UI에서 특정 화질을 "요청"하더라도, 이는 mediasoup에게 어디까지나 **선호(preferred) 값**을 전달하는 것일 뿐입니다. 실제로 전달되는 화질(**current layer**)은 그 순간의 네트워크 대역폭(BWE)에 따라 서버가 별도로 결정합니다.
+- 즉 요청값 하나만 들고 UI를 만들면, 네트워크가 좋지 않은 환경에서 "고화질을 요청했지만 실제로는 저화질이 전달되는 중"인 상태를 사용자에게 "고화질"이라고 잘못 알려주게 됩니다. 그래서 화질 UI를 도입하는 시점부터 요청값과 실제값을 별도의 상태로 다뤄야 했습니다.
+
+### 해결 방식
+
+`consumer.setPreferredLayers({ spatialLayer })` 호출 시 `temporalLayer`는 의도적으로 생략했습니다. 생략하면 mediasoup worker가 해당 Consumer에서 가능한 최대 temporal layer(FPS)를 채워주므로, "해상도(spatial)만 사용자가 직접 낮추고, 프레임 수(temporal)는 항상 최대로 유지"하는 정책을 코드 변경 없이 구현할 수 있었습니다.
+
+<Collapse title={"setConsumerPreferredLayers"}>
+```ts
+// group-study-management.service.ts
+async setConsumerPreferredLayers(
+  uid: string,
+  consumerId: string,
+  spatialLayer: number,
+) {
+  const peer = this.requirePeer(uid, 'setConsumerPreferredLayers');
+  if (!peer) {
+    return { success: false, error: 'Peer does not exist' };
+  }
+
+  try {
+    // temporalLayer를 생략하면 mediasoup worker가 해당 consumer에서 가능한
+    // 최대 temporal layer를 기본값으로 채운다. 즉 현재 정책은
+    // "spatial(해상도)만 명시적으로 낮추고 temporal(fps 계층)은 최대 유지"다.
+    //
+    // 이 호출은 preferred layer를 바꾸는 것이고, 실제로 선택된 current layer는
+    // 네트워크 상태나 producer 상태에 따라 더 낮아질 수 있다. 실제 값은
+    // 위의 `layerschange` 이벤트를 통해 클라이언트에 전달된다.
+    return await peer.setPreferredLayersOfConsumer(spatialLayer, consumerId);
+  } catch (error) {
+    // ...
+  }
+}
+```
+</Collapse>
+
+실제로 전달 중인 화질은 요청 시점이 아니라, mediasoup Consumer의 `layerschange` 이벤트를 통해서만 확인할 수 있습니다. 서버는 이 이벤트를 받아 그대로 소켓 이벤트(`CONSUMER_LAYERS_CHANGED`)로 클라이언트에 중계합니다.
+
+`layerschange`의 payload가 `undefined`로 전달되는 경우는 단순한 화질 정보 부재가 아니라, "지금 이 Consumer에게 포워딩 중인 레이어가 하나도 없다"는 상태 신호로 해석해서 처리했습니다. 대역폭 저하로 SFU가 할당할 레이어를 찾지 못한 경우가 대표적이지만, producer pause나 연결 초기처럼 아직 실제 RTP 흐름이 잡히지 않은 경우에도 같은 값이 오기 때문에, 원인을 단정하지 않고 "영상이 아직 오지 않는 상태"로 묶어서 UI에 표시했습니다.
+
+<Collapse title={"consumer.on('layerschange', ...)"}>
+```ts
+// group-study-management.service.ts
+consumer.on('layerschange', (layers: ConsumerLayers | undefined) => {
+  // mediasoup의 `layerschange`는 "preferred layer를 이렇게 원한다"가 아니라
+  // "지금 실제로 forwarding 중인 current layer가 이렇게 바뀌었다"는 신호다.
+  // 그래서 UI 표시값은 preferredLayers보다 이 이벤트 payload를 신뢰하는 편이 맞다.
+  //
+  // [주의: BWE(Bandwidth Estimation) 기반 Network Drop 감지]
+  // 송출자나 수신자의 네트워크 상태가 악화되어 BWE 값이 심각하게 낮아지면,
+  // SFU는 더 이상 적절한 미디어 레이어를 전송할 수 없다고 판단해 스스로
+  // 할당할 spatial layer를 찾지 못하게 된다. 이때 mediasoup는 `layers`를
+  // `undefined`로 전달하며, 이는 "네트워크 문제로 해당 Consumer에 대한
+  // 미디어 포워딩이 사실상 중단된 상태"임을 알리는 heartbeat 역할을 한다.
+  const payload: ConsumerLayersChangedPayload = {
+    consumerId: consumer.id,
+    layers,
+  };
+
+  clientSocket.emit(EventNames.CONSUMER_LAYERS_CHANGED, payload);
+});
+```
+</Collapse>
+
+마지막으로, 클라이언트 상태를 "사용자가 요청한 값(`requestedSpatialLayer`)"과 "서버로부터 확인된 실제 값(`currentSpatialLayer`)"으로 분리하여, UI가 이 둘을 구분해서 보여줄 수 있도록 했습니다.
+
+<Collapse title={"ConsumerLayerState"}>
+```ts
+// client/src/zustand-stores/connection-slices/types.ts
+export type ConsumerLayerState = {
+  requestedSpatialLayer?: number;
+  currentSpatialLayer?: number;
+  isPausedByProducer?: boolean;
+  isPausedLocallyByViewer?: boolean;
+};
+```
+</Collapse>
+
+전체 흐름을 시퀀스 다이어그램으로 정리하면 다음과 같습니다. 요청(request)과 실제 반영(current)이 같은 타이밍에 일어나지 않는다는 점, 그리고 네트워크가 나빠지면 `layerschange`가 `undefined`로 오는 경우까지 함께 표현했습니다.
+
+<DiagramPopout>
+
+```mermaid
+sequenceDiagram
+    actor User
+    participant ClientStore as Client Store (Zustand)
+    participant Server as Signaling Server (NestJS Gateway)
+    participant Worker as Mediasoup Worker
+
+    User->>ClientStore: 화질 낮추기 클릭
+    ClientStore->>ClientStore: requestedSpatialLayer 즉시 갱신 (optimistic)
+    ClientStore-->>Server: emit SET_CONSUMER_PREFERRED_LAYERS
+    Server->>Worker: consumer.setPreferredLayers({ spatialLayer })
+    Note over Worker: 이 시점엔 "선호"만 반영됨.<br/>실제 전달 레이어는 아직 안 바뀔 수 있음.
+
+    Note over Worker: 네트워크 상태(BWE)에 따라<br/>실제 전달 가능한 레이어가 별도로 결정됨
+    Worker--)Server: layerschange 이벤트 (currentLayers)
+    Server-->>ClientStore: emit CONSUMER_LAYERS_CHANGED
+    ClientStore->>ClientStore: currentSpatialLayer 갱신
+    ClientStore->>User: "요청 Low / 현재 Mid" 등으로 구분 표시
+
+    alt 포워딩 중인 레이어가 없음 (대역폭 저하 · producer pause · 연결 초기 등)
+        Worker--)Server: layerschange(undefined)
+        Server-->>ClientStore: emit CONSUMER_LAYERS_CHANGED (layers: undefined)
+        ClientStore->>ClientStore: currentSpatialLayer = undefined
+        ClientStore->>User: "현재 동기화 중" 라벨 + "영상 수신 대기 중" 오버레이
+    end
+```
+
+</DiagramPopout>
+
+이렇게 요청값과 실제값을 분리한 덕분에, 네트워크가 나쁜 상황에서도 사용자에게 "지금 고화질을 요청했지만 실제로는 낮은 화질로 전달되고 있다"는 사실을 정직하게 보여줄 수 있게 되었습니다.
 
 ## [**WebRTC Disconnection Handling**](https://pomodoro-doc.vercel.app/features#%EB%B6%88%EC%95%88%EC%A0%95%ED%95%9C-%EC%9D%B8%ED%84%B0%EB%84%B7-%EC%97%B0%EA%B2%B0-%EB%8B%A4%EB%A3%A8%EA%B8%B0)
 
@@ -1454,124 +1573,6 @@ echo "Done."
 </ Collapse>
 
 
-## **WebRTC 수신 화질: 요청과 실제의 괴리 다루기**
-
-### 문제 상황
-
-- mediasoup는 트랜스코딩(재인코딩) 없이 패킷을 그대로 중계하는 SFU입니다. 송신자가 하나의 화질로만 스트림을 올리면, 서버는 수신자 각각의 네트워크 상태에 맞춰 화질을 새로 만들어낼 수 없고 패킷을 버리는 것 말고는 할 수 있는 일이 없습니다.
-- 이를 해결하기 위해 송신자가 여러 해상도(spatial layer)를 동시에 인코딩해서 올리는 [Simulcast](https://mediasoup.org/documentation/v3/mediasoup/simulcast/)를 도입해, 서버가 수신자별로 적절한 해상도를 골라 전달할 수 있도록 했습니다.
-- 문제는 여기서 발생했습니다. 사용자가 UI에서 특정 화질을 "요청"하더라도, 이는 mediasoup에게 어디까지나 **선호(preferred) 값**을 전달하는 것일 뿐입니다. 실제로 전달되는 화질(**current layer**)은 그 순간의 네트워크 대역폭(BWE)에 따라 서버가 별도로 결정합니다.
-- 즉 요청값 하나만 들고 UI를 만들면, 네트워크가 좋지 않은 환경에서 "고화질을 요청했지만 실제로는 저화질이 전달되는 중"인 상태를 사용자에게 "고화질"이라고 잘못 알려주게 됩니다. 그래서 화질 UI를 도입하는 시점부터 요청값과 실제값을 별도의 상태로 다뤄야 했습니다.
-
-### 해결 방식
-
-`consumer.setPreferredLayers({ spatialLayer })` 호출 시 `temporalLayer`는 의도적으로 생략했습니다. 생략하면 mediasoup worker가 해당 Consumer에서 가능한 최대 temporal layer(FPS)를 채워주므로, "해상도(spatial)만 사용자가 직접 낮추고, 프레임 수(temporal)는 항상 최대로 유지"하는 정책을 코드 변경 없이 구현할 수 있었습니다.
-
-<Collapse title={"setConsumerPreferredLayers"}>
-```ts
-// group-study-management.service.ts
-async setConsumerPreferredLayers(
-  uid: string,
-  consumerId: string,
-  spatialLayer: number,
-) {
-  const peer = this.requirePeer(uid, 'setConsumerPreferredLayers');
-  if (!peer) {
-    return { success: false, error: 'Peer does not exist' };
-  }
-
-  try {
-    // temporalLayer를 생략하면 mediasoup worker가 해당 consumer에서 가능한
-    // 최대 temporal layer를 기본값으로 채운다. 즉 현재 정책은
-    // "spatial(해상도)만 명시적으로 낮추고 temporal(fps 계층)은 최대 유지"다.
-    //
-    // 이 호출은 preferred layer를 바꾸는 것이고, 실제로 선택된 current layer는
-    // 네트워크 상태나 producer 상태에 따라 더 낮아질 수 있다. 실제 값은
-    // 위의 `layerschange` 이벤트를 통해 클라이언트에 전달된다.
-    return await peer.setPreferredLayersOfConsumer(spatialLayer, consumerId);
-  } catch (error) {
-    // ...
-  }
-}
-```
-</Collapse>
-
-실제로 전달 중인 화질은 요청 시점이 아니라, mediasoup Consumer의 `layerschange` 이벤트를 통해서만 확인할 수 있습니다. 서버는 이 이벤트를 받아 그대로 소켓 이벤트(`CONSUMER_LAYERS_CHANGED`)로 클라이언트에 중계합니다.
-
-`layerschange`의 payload가 `undefined`로 전달되는 경우는 단순한 화질 정보 부재가 아니라, "지금 이 Consumer에게 포워딩 중인 레이어가 하나도 없다"는 상태 신호로 해석해서 처리했습니다. 대역폭 저하로 SFU가 할당할 레이어를 찾지 못한 경우가 대표적이지만, producer pause나 연결 초기처럼 아직 실제 RTP 흐름이 잡히지 않은 경우에도 같은 값이 오기 때문에, 원인을 단정하지 않고 "영상이 아직 오지 않는 상태"로 묶어서 UI에 표시했습니다.
-
-<Collapse title={"consumer.on('layerschange', ...)"}>
-```ts
-// group-study-management.service.ts
-consumer.on('layerschange', (layers: ConsumerLayers | undefined) => {
-  // mediasoup의 `layerschange`는 "preferred layer를 이렇게 원한다"가 아니라
-  // "지금 실제로 forwarding 중인 current layer가 이렇게 바뀌었다"는 신호다.
-  // 그래서 UI 표시값은 preferredLayers보다 이 이벤트 payload를 신뢰하는 편이 맞다.
-  //
-  // [주의: BWE(Bandwidth Estimation) 기반 Network Drop 감지]
-  // 송출자나 수신자의 네트워크 상태가 악화되어 BWE 값이 심각하게 낮아지면,
-  // SFU는 더 이상 적절한 미디어 레이어를 전송할 수 없다고 판단해 스스로
-  // 할당할 spatial layer를 찾지 못하게 된다. 이때 mediasoup는 `layers`를
-  // `undefined`로 전달하며, 이는 "네트워크 문제로 해당 Consumer에 대한
-  // 미디어 포워딩이 사실상 중단된 상태"임을 알리는 heartbeat 역할을 한다.
-  const payload: ConsumerLayersChangedPayload = {
-    consumerId: consumer.id,
-    layers,
-  };
-
-  clientSocket.emit(EventNames.CONSUMER_LAYERS_CHANGED, payload);
-});
-```
-</Collapse>
-
-마지막으로, 클라이언트 상태를 "사용자가 요청한 값(`requestedSpatialLayer`)"과 "서버로부터 확인된 실제 값(`currentSpatialLayer`)"으로 분리하여, UI가 이 둘을 구분해서 보여줄 수 있도록 했습니다.
-
-<Collapse title={"ConsumerLayerState"}>
-```ts
-// client/src/zustand-stores/connection-slices/types.ts
-export type ConsumerLayerState = {
-  requestedSpatialLayer?: number;
-  currentSpatialLayer?: number;
-  isPausedByProducer?: boolean;
-  isPausedLocallyByViewer?: boolean;
-};
-```
-</Collapse>
-
-전체 흐름을 시퀀스 다이어그램으로 정리하면 다음과 같습니다. 요청(request)과 실제 반영(current)이 같은 타이밍에 일어나지 않는다는 점, 그리고 네트워크가 나빠지면 `layerschange`가 `undefined`로 오는 경우까지 함께 표현했습니다.
-
-<DiagramPopout>
-
-```mermaid
-sequenceDiagram
-    actor User
-    participant ClientStore as Client Store (Zustand)
-    participant Server as Signaling Server (NestJS Gateway)
-    participant Worker as Mediasoup Worker
-
-    User->>ClientStore: 화질 낮추기 클릭
-    ClientStore->>ClientStore: requestedSpatialLayer 즉시 갱신 (optimistic)
-    ClientStore-->>Server: emit SET_CONSUMER_PREFERRED_LAYERS
-    Server->>Worker: consumer.setPreferredLayers({ spatialLayer })
-    Note over Worker: 이 시점엔 "선호"만 반영됨.<br/>실제 전달 레이어는 아직 안 바뀔 수 있음.
-
-    Note over Worker: 네트워크 상태(BWE)에 따라<br/>실제 전달 가능한 레이어가 별도로 결정됨
-    Worker--)Server: layerschange 이벤트 (currentLayers)
-    Server-->>ClientStore: emit CONSUMER_LAYERS_CHANGED
-    ClientStore->>ClientStore: currentSpatialLayer 갱신
-    ClientStore->>User: "요청 Low / 현재 Mid" 등으로 구분 표시
-
-    alt 포워딩 중인 레이어가 없음 (대역폭 저하 · producer pause · 연결 초기 등)
-        Worker--)Server: layerschange(undefined)
-        Server-->>ClientStore: emit CONSUMER_LAYERS_CHANGED (layers: undefined)
-        ClientStore->>ClientStore: currentSpatialLayer = undefined
-        ClientStore->>User: "현재 동기화 중" 라벨 + "영상 수신 대기 중" 오버레이
-    end
-```
-
-</DiagramPopout>
-
-이렇게 요청값과 실제값을 분리한 덕분에, 네트워크가 나쁜 상황에서도 사용자에게 "지금 고화질을 요청했지만 실제로는 낮은 화질로 전달되고 있다"는 사실을 정직하게 보여줄 수 있게 되었습니다.
 
 {/* #### Elastic scroll에 의한 bouncing effect 제외시키기
 

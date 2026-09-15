@@ -54,3 +54,32 @@ Pomodoro 기법을 기반으로 집중·휴식 시간을 관리하고, 통계·�
 ## 문서 간 관계
 
 `introduction.md`가 프로젝트의 출발점입니다. 기능의 사용자 관점 설명은 `features.mdx`에서, 해당 기능을 안정적으로 만들기 위해 마주한 기술 과제와 해결 과정은 `problem-solving.mdx`에서 이어집니다. 필요에 따라 데이터 모델·흐름 문서와 질문·보충 문서를 참조하면 됩니다.
+
+## 포트폴리오 PDF
+
+`npm run build`는 `includeDocs`에 지정한 소개 → 데이터베이스 → 문제 해결
+세 문서를 코드와 함께 PDF로 생성합니다. 웹사이트의 사이드바는 바꾸지 않습니다.
+첫 페이지의 **포트폴리오 PDF 열기 / 인쇄** 버튼은
+`/pdfs/pomodoro-portfolio.pdf`를 새 탭으로 엽니다. 생성에 성공한 전체 PDF는
+`static/pdfs/`에도 저장하므로 `npm start`와 `npm run serve` 양쪽에서 열립니다.
+개발 서버에서는 마지막으로 빌드한 PDF를 제공합니다. 문서 수정 사항을 PDF에
+반영하려면 다시 빌드하세요. 새로 받은 저장소에서는 최초 PDF 빌드가 필요합니다.
+
+빌드 환경에는 Java (`java`가 PATH에 있어야 함), Chromium/Chrome 및 한글
+폰트가 필요합니다. 기존 Chrome을 사용하는 경우
+`PUPPETEER_EXECUTABLE_PATH=/path/to/chrome npm run build`로 실행할 수 있습니다.
+Java가 없는 배포 환경에도 PDF를 생성하려면 해당 빌드 환경에 Java를 준비해야 합니다.
+PDF 생성을 건너뛰는 임시 웹 빌드는 `BUILD_PDF=0 npm run build`입니다.
+이 경우 PDF는 갱신되지 않으며, `static/pdfs/`에 기존 PDF가 있으면 그 파일을 제공합니다.
+
+Papersaurus는 npm 설치를 지원하는 `@axinom/docusaurus-plugin-papersaurus@1.0.1`로
+고정했습니다. 설치 후 `scripts/patch-papersaurus.cjs`가 한글 목차 누락과 목차
+페이지 번호 오류를 보정합니다. 목차의 페이지 번호는 표지를 제외한 본문 기준입니다.
+1.1.1은 npm 설치를 거부하는 preinstall 스크립트가 있습니다.
+`plugins/portfolio-pdf/index.cjs`는 임시 빌드 복사본에서 문서를 브라우저로
+렌더링한 뒤 Papersaurus에 전달합니다. 이를 통해 Mermaid, 접힌 코드와 지연
+로딩 이미지를 포함하고, 동영상은 원본 URL로 표시합니다. 웹 문서의 상태는
+변경하지 않습니다. PDF 전용 스타일은 `static/pdf-assets/print.css`에 있습니다.
+
+포함 문서와 순서는 `docusaurus.config.ts`의 `includeDocs`에서 관리합니다.
+현재 값은 `["introduction", "database", "problem-solving"]`입니다.

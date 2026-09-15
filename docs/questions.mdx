@@ -1,6 +1,8 @@
 ---
 sidebar_position: 7
 ---
+
+import DiagramPopout from "../src/components/DiagramPopout";
 import { Highlight } from "../src/components/Highlight";
 import Collapse from "../src/components/Collapse"
 
@@ -373,8 +375,16 @@ axiosInstance.interceptors.response.use(
 
 <Collapse title={"CSS Structure"}>
 
+<DiagramPopout>
+
 ![main-comp-layout](./img/main-comp-layout.svg)
+
+</DiagramPopout>
+<DiagramPopout>
+
 ![timeline-structure](./img/timeline-structure.svg)
+
+</DiagramPopout>
 
 </Collapse>
 

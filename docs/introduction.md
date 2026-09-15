@@ -7,12 +7,16 @@ import DiagramPopout from "../src/components/DiagramPopout"
 
 # Overview
 
-<!--이거 어떤 회사 공고에서 자기가 만든건지 뭐 기여도같은거 명시하라고 해서 적었던 것임. -->
+<div className="pdf-download">
+  <a href="/pdfs/pomodoro-portfolio.pdf" target="_blank" rel="noopener noreferrer">포트폴리오 PDF 열기 / 인쇄</a>
+  <p className="pdf-download__caption">프로젝트 소개 · 데이터베이스 · 문제 해결 내용을 담고 있습니다.</p>
+</div>
 
-기획부터 프론트엔드와 백엔드 개발까지 직접 진행한 개인 프로젝트입니다.
+※ 이 PDF에서는 다이어그램이 페이지 폭에 맞춰 작게 보일 수 있습니다. 원본 크기로 보거나 개별 인쇄하려면, 온라인 문서(각 장 상단의 "웹 문서" 링크)에서 다이어그램을 클릭해 주세요.
 
 ## 소개
 
+- 기획부터 프론트엔드와 백엔드 개발까지 직접 진행한 개인 프로젝트입니다.
 - [Pomodoro technique](https://ko.wikipedia.org/wiki/%ED%8F%AC%EB%AA%A8%EB%8F%84%EB%A1%9C_%EA%B8%B0%EB%B2%95)을 기반으로 하는 공부 & 작업 시간 측정 App입니다.
 - 한 사이클의 작업 시간을 여러 개의 작업 세션들과 이어지는 짧은 휴식 그리고 마지막 긴 휴식으로 나누어 높은 집중력을 유지하는 데 도움을 줍니다.
   (작업 시간을 pomodoro 또는 pomo라고 부릅니다).

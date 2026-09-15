@@ -2,6 +2,8 @@
 sidebar_position: 3
 ---
 
+import DiagramPopout from "../src/components/DiagramPopout";
+
 import ResponsivePlayer from "../src/components/ResponsivePlayer/ResponsivePlayer";
 import Collapse from "../src/components/Collapse"
 import { Highlight } from "../src/components/Highlight";
@@ -92,8 +94,16 @@ import { Highlight } from "../src/components/Highlight";
 
 <Collapse title={"Images"}>
 
+<DiagramPopout>
+
 ![main-comp-layout](./img/main-comp-layout.svg)
+
+</DiagramPopout>
+<DiagramPopout>
+
 ![timeline-structure](./img/timeline-structure.svg)
+
+</DiagramPopout>
 
 </Collapse>
 
@@ -130,8 +140,16 @@ import { Highlight } from "../src/components/Highlight";
 이 그림에서 css Left는 아래 코드에서의 left와 다름. 전자는 타임라인을 viewport에서 얼마나 수평으로 움직이느냐에 관한 것.
 후자는 타임라인 좌측 끝에서부터 session 박스가 얼마나 떨어져있는지 css의 left offset을 이용해서 나타내는 값.
 후자는 session을 구성하는 duration값중 가장 첫번째 값의 startTime과 그날의 오전 12:00에 상응하는 timestamp를 이용해서 계산.
+<DiagramPopout>
+
 ![timeline-ui-explanation](./img/timeline-ui-explanation.svg)
+
+</DiagramPopout>
+<DiagramPopout>
+
 ![scale-ui](./img/scale-ui.svg)
+
+</DiagramPopout>
 </Collapse>
 <Collapse title={"seconds --> left css, startTime === duration[0].startTime"}>
 ```tsx
@@ -318,9 +336,9 @@ Total Graph는 Stacked Graph이므로 특정 카테고리의 추세를 직관적
   - 연동을 활성화하면 `/timer` 페이지에서 미완료 작업들을 확인할 수 있습니다.
   - 원하는 작업을 선택하여 해당 작업에 얼마나 시간을 할애했는지 추적할 수 있습니다.
 
-- 방식: OAuth 2.0 인증 플로우를 [Todoist API TypeScript Client](https://doist.github.io/todoist-api-typescript/) library를 이용해서 구현.
-- Sequence Diagarm: [enable integration](./img/integrate-todoist.png)
-{/* - Sequence Diagarm: [enable integration](./assets/enable-todoist-integration.mmd) */}
+- 방식: OAuth 2.0 인증 플로우를 [Todoist API TypeScript Client](https://github.com/Doist/todoist-sdk-typescript) library를 이용해서 구현.
+
+<DiagramPopout>
 
 ```mermaid
 sequenceDiagram
@@ -342,6 +360,8 @@ sequenceDiagram
     		API Server ->> F.E App: redirect to `/settings` with a failed or canceled param
     end
 ```
+
+</DiagramPopout>
 
 - State Validation
   - CSRF (Cross-Site Request Forgery)를 방지하기 위해

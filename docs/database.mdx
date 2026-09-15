@@ -4,6 +4,8 @@ sidebar_position: 2
 hide_table_of_contents: false
 ---
 
+import DiagramPopout from "../src/components/DiagramPopout";
+
 import Collapse from "../src/components/Collapse";
 
 # 데이터베이스
@@ -46,11 +48,9 @@ PostgreSQL과 Drizzle ORM을 사용합니다.
 
 ## ERD
 
-<a className="erd-preview-link" href="/img/postgresql-erd.svg" target="_blank" rel="noopener noreferrer">
+<DiagramPopout>
   <img className="erd-preview" src="/img/postgresql-erd.svg" alt="PostgreSQL 테이블과 외래 키 관계" />
-</a>
-
-이미지를 클릭하면 새 탭에서 크게 볼 수 있습니다.
+</DiagramPopout>
 
 - 각 테이블의 기본 키는 UUID입니다. 사용자에 속한 카테고리, 사이클 설정, Task, 세션, 집중 시간 기록은 `userId`로 `users`를 참조합니다.
 - `cycle_records`는 어떤 사이클 설정으로 수행한 기록인지 `cycleSettingId`로 연결합니다.
