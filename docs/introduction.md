@@ -7,6 +7,8 @@ import DiagramPopout from "../src/components/DiagramPopout"
 
 # Overview
 
+[라이브 웹 앱](https://pomodoro-git-main-yhs-projects-00a441cb.vercel.app) · [애플리케이션 소스 코드](https://github.com/Yonghwan-Song/pomodoro)
+
 <div className="pdf-download">
   <a href="/pdfs/pomodoro-portfolio.pdf" target="_blank" rel="noopener noreferrer">포트폴리오 PDF 열기 / 인쇄</a>
   <p className="pdf-download__caption">프로젝트 소개 · 데이터베이스 · 문제 해결 내용을 담고 있습니다.</p>
@@ -37,13 +39,13 @@ import DiagramPopout from "../src/components/DiagramPopout"
   </div>
   <div className="card__body">
     <p>
-      브라우저끼리는 서로의 코덱과 네트워크 정보를 직접 주고받을 수 없어서, 그 교환을
-      중계할 채널을 NestJS Gateway 위에 Socket.IO로 직접 구현했습니다. mediasoup은
-      연결이 필요한 시점에 콜백을 호출해 줄 것을 요구하는데, 정작 그 답은 서버에 다녀와야
-      나오고 콜백을 호출하지 않으면 아무 에러 없이 연결이 멈춰버립니다. 소켓 ack 응답을
-      이 콜백에 이어 붙여 성공과 실패가 모두 라이브러리까지 전달되도록 했고, 재연결마다
-      소켓 ID가 새로 발급되는 문제는 사용자 신원을 기준으로 세션을 승계하고 뒤늦게 도착한
-      옛 소켓의 종료 이벤트는 무시하는 방식으로 처리했습니다.
+      브라우저끼리는 코덱과 네트워크 정보를 직접 주고받을 수 없어서, 이를 중계하는 채널을
+      NestJS Gateway 위에 Socket.IO로 구현했습니다. mediasoup은 연결 시점에 앱이 콜백을
+      호출해 주기를 기다리는데, 그 결과는 서버를 거쳐야 알 수 있고 콜백이 호출되지 않으면
+      아무 에러 없이 연결이 멈춰 버립니다. 그래서 소켓 ack 응답을 이 콜백에 연결해 성공과
+      실패가 모두 라이브러리까지 전달되도록 했습니다. 또한 재연결할 때마다 소켓 ID가 새로
+      발급되는 문제는, 사용자 신원을 기준으로 세션을 승계하고 뒤늦게 도착한 이전 소켓의
+      종료 이벤트는 무시하는 방식으로 해결했습니다.
     </p>
   </div>
   <div className="card__footer">
@@ -59,10 +61,10 @@ import DiagramPopout from "../src/components/DiagramPopout"
   </div>
   <div className="card__body">
     <p>
-      화면 공유 기능은 시그널링에 TCP를, 미디어 전송에 UDP를 쓰는데, 두 프로토콜이 각각
-      혹은 동시에 끊기는 경우가 있었습니다. Firebase UID로 재연결 시 기존 세션을 복구하고,
-      ICE Restart로 미디어 연결까지 되살리도록 구현했습니다. 이 상황들을 재현해서 검증하기
-      위해 로컬 환경에서 TCP/UDP 연결을 직접 끊어보는 테스트 방법도 따로 마련했습니다.
+      화면 공유 기능은 시그널링에 TCP를, 미디어 전송에 UDP를 사용하는데, 두 연결이 따로
+      또는 동시에 끊기는 경우가 있었습니다. 재연결 시 Firebase UID로 기존 세션을 복구하고,
+      ICE Restart로 미디어 연결까지 되살리도록 구현했습니다. 또한 이런 상황을 재현해 검증할
+      수 있도록 로컬 환경에서 TCP/UDP 연결을 직접 끊어 보는 테스트 방법도 마련했습니다.
     </p>
   </div>
   <div className="card__footer">
@@ -79,10 +81,10 @@ import DiagramPopout from "../src/components/DiagramPopout"
   <div className="card__body">
     <p>
       타이머 UI를 그리는 컴포넌트는 다른 페이지로 이동하면 unmount되어 상태를 잃어버립니다.
-      상태를 IndexedDB에 저장해두고 돌아올 때 복원하는 방식으로 풀었는데, 페이지 밖에서도
-      세션을 이어서 카운트다운하려고 Service Worker를 썼습니다. 하지만 Service Worker는
-      특정 이벤트에만 반응하고 곧바로 종료된다는 걸 뒤늦게 알게 되어, 카운트다운은 다시
-      메인 스레드로 옮기고 Pub/Sub 패턴으로 페이지 간 상태를 동기화했습니다.
+      그래서 상태를 IndexedDB에 저장해 두었다가 돌아올 때 복원하도록 했고, 페이지 밖에서도
+      카운트다운이 이어지도록 처음에는 Service Worker를 사용했습니다. 하지만 Service Worker는
+      특정 이벤트에만 반응하고 곧 종료된다는 사실을 뒤늦게 알게 되어, 카운트다운은 메인
+      스레드로 다시 옮기고 Pub/Sub 패턴으로 페이지 간 상태를 동기화했습니다.
     </p>
   </div>
   <div className="card__footer">
@@ -98,10 +100,10 @@ import DiagramPopout from "../src/components/DiagramPopout"
   </div>
   <div className="card__body">
     <p>
-      학교 도서관에서 작업하다 보면 시험 기간마다 와이파이가 간헐적으로 끊겼는데, 그동안
-      진행한 기록은 서버에 저장되지 않는 문제가 있었습니다. 요청을 임시로 보관해두었다가
-      인터넷이 다시 연결되면 순서대로 다시 보내는 방식으로 풀었고, 같은 리소스를 여러 번
-      수정한 요청은 하나로 합쳐서 보내도록 했습니다.
+      시험 기간에 학교 도서관에서 작업하면 와이파이가 간헐적으로 끊겼고, 그동안 진행한
+      기록이 서버에 저장되지 않는 문제가 있었습니다. 요청을 임시로 보관해 두었다가 연결이
+      복구되면 순서대로 다시 보내도록 했고, 같은 리소스를 여러 번 수정한 요청은 하나로 합쳐
+      보내도록 했습니다.
     </p>
   </div>
   <div className="card__footer">
@@ -117,10 +119,10 @@ import DiagramPopout from "../src/components/DiagramPopout"
   </div>
   <div className="card__body">
     <p>
-      제 앱의 사용 방식에 맞는 타임라인 라이브러리를 찾기 어려워서 CSS 연습 삼아 직접
-      구현했습니다. 화면 크기에 따라 반응형으로 만드는 과정에서 media query를 쓰는 방식이
-      기존 이벤트 핸들러와 충돌해 작동하지 않는 문제를 겪었고, 대신 matchMedia 같은 Web
-      API로 화면 크기 변화를 감지해서 픽셀 값을 다시 계산하는 방식으로 바꿨습니다.
+      앱의 사용 방식에 맞는 타임라인 라이브러리를 찾기 어려워, CSS 연습을 겸해 직접
+      구현했습니다. 반응형으로 만드는 과정에서 media query 방식이 기존 이벤트 핸들러와
+      충돌해 제대로 동작하지 않았고, 대신 matchMedia 같은 Web API로 화면 크기 변화를 감지해
+      픽셀 값을 다시 계산하는 방식으로 바꿨습니다.
     </p>
   </div>
   <div className="card__footer">
