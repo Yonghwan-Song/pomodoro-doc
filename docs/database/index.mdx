@@ -1,16 +1,18 @@
 ---
-sidebar_label: "Database"
-sidebar_position: 2
+id: database
+slug: /database
+sidebar_label: "데이터베이스 개요"
+sidebar_position: 1
 hide_table_of_contents: false
 ---
 
-import DiagramPopout from "../src/components/DiagramPopout";
+import DiagramPopout from "../../src/components/DiagramPopout";
 
-import Collapse from "../src/components/Collapse";
+import Collapse from "../../src/components/Collapse";
 
 # 데이터베이스
 
-PostgreSQL과 Drizzle ORM을 사용합니다.
+PostgreSQL과 Drizzle ORM을 사용합니다. 아래 테이블과 관계는 `nest-server/src/postgresql/schema.ts`의 현재 정의를 기준으로 합니다. 컬럼은 본문에서 Drizzle의 camelCase 이름으로, ERD에서는 실제 DB의 snake_case 이름으로 표기합니다.
 
 ## 이 문서에서 쓰는 용어
 
@@ -31,20 +33,115 @@ PostgreSQL과 Drizzle ORM을 사용합니다.
 | `categories` | 사용자별 카테고리 이름, 색상, 통계 표시 여부 |
 | `cycle_settings` | 집중·휴식 시간과 반복 횟수 등 사이클 설정 |
 | `cycle_records` | 사이클을 수행한 시간과 이행률 |
-| `timer_sessions` | 집중·휴식 세션의 시작과 종료 시각, 일시정지 기록 |
+| `timer_sessions` | 집중·휴식 세션의 시작·종료, 목표 시간·수정량, 조기 종료, 총 일시정지 시간 |
+| `session_pauses` | 세션 안에서 닫힌 일시정지의 시작·종료와 사유 |
+| `session_segments` | 작업·카테고리 변경과 focus/pause 경계로 나눈 ms 단위 타임라인 |
 | `pomodoros` | 카테고리와 Task별로 나누어 저장한 집중 시간 |
 | `todoist_tasks` | Todoist Task 정보, 상위 Task와의 관계, 누적 집중 시간 |
 | `rooms` | 스터디 방 이름, 최대 참여 인원 등의 설정 |
 {/* TODO: 사용자 정보를 제외한 column들 분리 */}
 
-### 세션 기록과 집중 시간 기록
+### 세션, 일시정지, 구간, 집중 시간 기록 {#session-records}
 
-- `timer_sessions`는 Timeline에 세션을 표시할 때 사용합니다. 집중 세션뿐 아니라 휴식 세션도 저장하며, 일시정지한 구간도 함께 저장합니다.
-- `pomodoros`는 통계에 사용할 집중 시간을 저장합니다. 세션 도중 카테고리나 Task를 바꿀 수 있으므로, 하나의 집중 세션에서 여러 기록이 만들어질 수 있습니다.
+한 번의 타이머 실행을 서로 다른 단위로 보관합니다.
 
-예를 들어 25분 동안 수학을 10분, 영어를 15분 공부했다면, 세션 전체 기록과 별도로 각 카테고리의 집중 시간을 저장합니다. 이때 `pomodoros`에는 행이 두 개 생기고, 각 행의 `startTime`은 세션을 시작한 시각과 카테고리를 바꾼 시각입니다. 즉 같은 세션에서 나뉜 기록이라도 `startTime`은 서로 다릅니다.
+- `timer_sessions`는 집중(`kind = pomo`) 또는 휴식(`kind = break`) 한 세션의 전체 구간과 수행 결과입니다.
+- `session_pauses`는 완료된 일시정지 한 번을 한 행으로 저장합니다. 진행 중인 일시정지는 `users.timersStates.pause`에 있습니다.
+- `session_segments`는 세션 안에서 카테고리·Task 또는 focus/pause 상태가 바뀔 때 나눈 구간입니다. 같은 일시정지 안에서도 작업이 바뀌면 여러 pause segment가 될 수 있습니다.
+- `pomodoros`는 focus 구간을 작업·카테고리 기준으로 집계한 분 단위 집중 시간입니다. pause segment는 합산하지 않습니다.
 
-{/* TODO: 어떻게 쪼개지는지 설명하는 부분으로 연결, 설명에 diagram넣기 */}
+예를 들어 09:00~09:25에 수학 10분, 일시정지 5분, 영어 10분을 수행했다면 세션은 1행, 일시정지는 1행, segment는 3행, pomodoro는 2행입니다. 새 기록의 segment는 클라이언트가 만든 ms 단위 배열을 저장합니다. 과거 기록은 이미 저장된 pomodoro와 pause로부터 [세션 구간을 역복원](./timeline-backfill/session-segments-backfill.mdx)했습니다.
+
+<DiagramPopout>
+
+```mermaid
+flowchart LR
+    session["timer_sessions: 세션 1행"] --> pause["session_pauses: 닫힌 일시정지 1행"]
+    session --> segments["session_segments: focus / pause / focus"]
+    session --> pomos["pomodoros: 수학 10분 / 영어 10분"]
+    segments -. "새 기록: focus 집계·분 단위 내림" .-> pomos
+```
+
+</DiagramPopout>
+
+클라이언트가 변경 이력으로 구간을 만드는 과정은 [Session Segmentation](../problem-solving.mdx#session-segmentation)에, 기존 pause JSON을 행으로 옮긴 절차는 [Pause 행 분리](./timeline-backfill/session-pause-backfill.mdx)에 적었습니다.
+
+#### FE 세션 맥락 보존과 향후 AI API 연계를 위한 정제 {#purpose-for-llm-context}
+
+단순 타이머 기록이나 통계 UI(막대 그래프 등)를 렌더링하는 용도라면, 기존처럼 분 단위 집계인 `pomodoros`와 세션의 총 집중 시간만으로도 충분합니다. 그러나 `session_pauses`와 `session_segments`를 독립된 테이블과 ms 단위 타임라인으로 정규화·복원한 핵심 목적은, **프론트엔드(FE)에서 사용자가 실제로 겪은 작업 전환과 일시정지 맥락을 데이터베이스에 손실 없이 그대로 전달·저장하여 향후 AI API 등 심층 분석 기능에 대비하기 위함**입니다.
+
+<DiagramPopout>
+
+```mermaid
+flowchart LR
+  subgraph legacy [과거 레거시 데이터]
+    oldPause["pause: JSON 배열<br/>(시간축 분리 안 됨)"]
+    oldPomo["pomodoro: 분 단위 합계<br/>(정확한 시작/종료 없음)"]
+  end
+
+  subgraph backfill [타임라인 복원]
+    p1["1단계: 일시정지 행 분리<br/>session_pauses<br/>(언제 쉬었는가)"]
+    p2["2단계: 구간 역산 복원<br/>session_segments<br/>(언제 무슨 작업을 했는가)"]
+    oldPause --> p1
+    oldPomo --> p2
+    p1 -.->|"휴식 타임라인 제공"| p2
+  end
+
+  subgraph ai [향후 기능 확장]
+    report["AI API 등 심층 분석 기능<br/>• 마찰 구간 및 낭비 패턴 분석<br/>• 비정형 사유 기반 코칭 피드백"]
+    p2 ==>|"고해상도 타임라인 전달"| report
+  end
+```
+
+</DiagramPopout>
+
+- **FE 맥락 전달의 중요성과 AI API의 필요성**:  
+  "오늘 4시간 집중했고 3번 일시정지했다"는 단순 수치 데이터(Structured Data)는 전통적인 SQL 집계나 차트로도 표현할 수 있습니다. 하지만 이는 *"사용자가 왜 특정 시점에 집중을 멈추었는가?"*, *"어떤 성격의 작업에서 마찰(Friction)이 발생하는가?"*와 같은 **질적 원인(Qualitative Cause)**을 설명하지 못합니다. 향후 AI API를 연동하여 가치 있는 분석을 도출하려면, 클라이언트(FE)에서 일어난 구체적인 활동 맥락과 비정형 데이터(사유 텍스트, 할 일 명칭)가 DB에 온전히 보존되어 있어야 합니다.
+
+- **타임라인 복원의 2단계 파이프라인**:
+  - **[1단계: 일시정지 행 분리 (session_pauses)](./timeline-backfill/session-pause-backfill.mdx)**: 세션 내부에 JSON 배열로 갇혀 있던 일시정지 내역을 독립 행으로 분리하여, 정확히 언제 휴식이 발생했는지에 대한 시간축을 확립했습니다.
+  - **[2단계: 세션 구간 역산 복원 (session_segments)](./timeline-backfill/session-segments-backfill.mdx)**: 1단계의 일시정지 타임라인을 기준으로, 과거 분 단위 집중 기록을 밀리초 단위의 연속 구간으로 역산 배치하여 "무슨 작업을 언제 수행했는가"를 복원했습니다.
+
+- **비정형 텍스트와 세부 구간의 결합**:  
+  - **일시정지 및 조기 종료 사유 (`reason`, `earlyEndReason`)**: 단순 시간 누수가 아니라 사용자가 직접 남긴 비정형 사유(예: "자료/레퍼런스 탐색", "집중력 저하/SNS", "긴급 용무")를 개별 pause 구간에 매핑합니다.
+  - **작업명 및 카테고리 스냅샷 (`taskContent`, `categoryName`)**: Todoist에서 연동된 구체적인 할 일 제목(예: "WebRTC 소켓 재연결 디버깅")을 ms 단위 focus 구간에 연결합니다.
+  - 이를 통해 향후 AI API는 *"사용자는 고난도 디버깅 작업 시 15~20분 전후로 '참고자료 탐색' 목적의 일시정지가 집중적으로 발생하며, 단순 반복 작업 시에는 '피로/딴짓'으로 인한 조기 종료 빈도가 높다"*와 같이 **작업 성격과 일시정지 사유 간의 인과적 집중 패턴**을 심도 있게 분석하고 맞춤형 코칭 피드백을 생성할 수 있습니다.
+
+- **불변 텍스트 스냅샷의 필요성**:  
+  사용자가 며칠 뒤 Todoist에서 할 일을 완료하여 삭제하거나 카테고리명을 변경하더라도, AI가 과거의 특정 날짜를 분석할 때 당시의 작업 맥락이 유실되어서는 안 됩니다. `session_segments`에 `taskContent`, `categoryName`을 텍스트 스냅샷으로 보존하도록 설계한 이유 역시 **AI 모델에 제공될 과거 시점의 비정형 맥락 데이터 무결성을 보장**하기 위한 결정입니다.
+
+### 세션의 목표와 종료 정보 {#session-target-and-end}
+
+| 컬럼 | 의미 |
+| --- | --- |
+| `startTime`, `endTime` | 세션 시작·종료 시각(epoch ms) |
+| `timeCountedDown` | 실제 카운트다운 시간(ms) |
+| `plannedDuration` | 시작 시 목표 시간(ms). 과거에 기록하지 않은 값은 NULL |
+| `editedDuration` | +5/−5 등 목표 수정량의 합(ms). 기본값 0, 과거 미상 값은 NULL 가능 |
+| `isEarlyEnded`, `earlyEndReason` | End 버튼으로 끊었는지와 선택 사유. 목표 시간과의 비교로 판정하지 않음 |
+| `totalPauseLength` | 닫힌 일시정지 시간의 합(ms)을 저장한 값. 자식 행 변경 시 자동 재계산되지 않음 |
+
+최종 목표 시간은 `plannedDuration + editedDuration`입니다. `earlyEndReason`은 조기 종료일 때만 가질 수 있습니다. 완료된 세션에 `pause` JSONB 컬럼은 더 이상 없으며, 개별 일시정지는 `session_pauses`로 읽습니다.
+
+### session_segments의 컬럼과 스냅샷 {#session-segments}
+
+| 컬럼 | 의미와 NULL 처리 |
+| --- | --- |
+| `id` | UUID 기본 키 |
+| `userId`, `timerSessionId` | 사용자·세션 FK. 삭제 시 NULL로 바뀌며 구간 행은 남음 |
+| `sequenceOrder` | 세션 안의 배열 순서. 0부터 부여 |
+| `type` | `focus` 또는 `pause` |
+| `startTime`, `duration` | 구간 시작 시각과 길이(ms) |
+| `endTime` | `startTime + duration` 생성 컬럼. INSERT에서 제외 |
+| `categoryName`, `taskId`, `taskContent` | 카테고리명, Todoist 원본 Task ID와 제목을 저장한 스냅샷 |
+| `categoryId`, `todoistTaskId` | 현재 카테고리·Task 행과 연결하는 선택 FK. 삭제되면 NULL |
+| `reason` | pause 구간의 선택 사유. focus와 빈 문자열은 NULL로 저장 |
+
+`taskId`는 Todoist의 문자열 ID이고 `todoistTaskId`는 로컬 `todoist_tasks.id`의 UUID입니다. 빈 owner 문자열은 NULL로 바꾸지만 `uncategorized`라는 이름은 유지합니다. 해당 사용자의 카테고리·Task 행을 찾지 못해도 FK를 NULL로 두고 구간을 저장합니다.
+
+이름과 제목을 함께 저장하므로 연결된 행이 삭제돼도 스냅샷 값은 남습니다. 새 세션에서는 저장 시점의 값을 담습니다. 백필에서 현재 카테고리명·Task 제목을 조회해 채운 값은 과거 시점의 값과 같다고 보장할 수 없습니다.
+
+휴식 세션의 진행 구간도 `type = focus`입니다. 집중 시간을 집계할 때는 부모 세션의 `kind = pomo`와 구간의 `type = focus`를 함께 확인해야 합니다. 세션이 삭제돼 `timerSessionId`가 NULL이면 부모의 종류도 조인으로 확인할 수 없습니다.
 
 ## ERD
 
@@ -55,26 +152,27 @@ PostgreSQL과 Drizzle ORM을 사용합니다.
 - 각 테이블의 기본 키는 UUID입니다. 사용자에 속한 카테고리, 사이클 설정, Task, 세션, 집중 시간 기록은 `userId`로 `users`를 참조합니다.
 - `cycle_records`는 어떤 사이클 설정으로 수행한 기록인지 `cycleSettingId`로 연결합니다.
 - `todoist_tasks`의 `parentTaskId`는 같은 테이블의 다른 행을 참조하여 상위·하위 Task 관계를 나타냅니다.
+- `session_pauses.timerSessionId`는 필수 FK입니다. `session_segments`의 사용자·세션·카테고리·Task FK는 모두 NULL을 허용합니다.
 - `rooms`는 다른 테이블과 연결하지 않았습니다. 현재 접속한 참여자 정보는 서버 메모리에서 관리합니다.
 
-`pomodoros.timerSessionId`는 마이그레이션 과정에서 집중 시간 기록과 세션 기록을 연결하기 위해 추가한 외래 키입니다. 기존 데이터 중 대응하는 세션을 찾을 수 없는 경우가 있어 `NULL`을 허용했습니다. 새 기록을 저장할 때도 세션과 연결하도록 API를 수정할 예정입니다.
+`pomodoros.timerSessionId`는 마이그레이션 과정에서 집중 시간 기록과 세션 기록을 연결하기 위해 추가한 외래 키입니다. 기존 데이터 중 대응하는 세션을 찾을 수 없는 경우가 있어 `NULL`을 허용했습니다. 현재 `POST /today-records`는 새 세션의 ID를 같은 요청에서 저장하는 `pomodoros.timerSessionId`와 `session_segments.timerSessionId`에 넣습니다.
 
 ### JSONB로 저장한 데이터
 
-타이머 진행 상태, 목표 집중 시간, 일시정지 기록, Todoist의 Task 객체 등을 JSONB로 저장했습니다. 이 중 일시정지 기록은 별도로 조회하기보다 세션과 함께 읽어 Timeline에 표시하므로, 별도 테이블로 나누지 않았습니다.
+현재 JSONB는 `users`의 진행 중 타이머 상태·변경 배열·사이클 상태·목표 설정과 `todoist_tasks.taskData`에 사용합니다. 진행 중 pause는 종료 시각이 없을 수 있고 각 구간에 선택 사유가 있습니다. 완료된 세션의 pause는 별도 행으로 분리했습니다. [Pause 행 분리](./timeline-backfill/session-pause-backfill.mdx)는 이 변경의 이력입니다.
 
 <Collapse title={"JSONB 타입과 컬럼 정의"}>
 
 JSONB에 사용하는 TypeScript 타입입니다. `Task`는 Todoist SDK에서 제공하는 타입을 사용합니다.
 
 ```ts
-import type { Task } from '@doist/todoist-api-typescript';
+import type { Task } from '@doist/todoist-sdk';
 
 type TimersStates = {
   duration: number;
   pause: {
     totalLength: number;
-    record: { start: number; end: number }[];
+    record: { start: number; end: number | undefined; reason: string | null }[];
   };
   repetitionCount: number;
   running: boolean;
@@ -112,11 +210,6 @@ export interface Goals {
   weeklyGoal: Goal;
   dailyGoals: DailyGoals;
 }
-
-type Pause = {
-  totalLength: number;
-  record: { start: number; end: number }[];
-};
 ```
 
 `users`의 JSONB 컬럼입니다.
@@ -179,24 +272,23 @@ goals: jsonb()
 taskData: jsonb().$type<Task>(),
 ```
 
-`timer_sessions`의 JSONB 컬럼입니다.
-
-```ts
-pause: jsonb()
-  .$type<Pause>()
-  .default({ totalLength: 0, record: [] })
-  .notNull(),
-```
+TypeScript의 JSONB 타입 선언은 기존 DB 값의 내부 구조를 검사하거나 자동 변경하지 않습니다. 예전에 저장된 진행 중 pause에 `reason`이 없으면 클라이언트가 읽을 때 NULL로 정규화합니다.
 
 </Collapse>
 
 ### 삭제 시 처리
 
-- 사용자를 삭제하면 해당 사용자의 카테고리, 사이클 설정, Task, 세션, 집중 시간 기록도 삭제됩니다. 사이클 설정에 연결된 `cycle_records`도 함께 삭제됩니다.
-- 카테고리를 삭제하면 `pomodoros.categoryId`는 `NULL`이 됩니다. 집중 시간 기록은 남지만, 기존 카테고리 이름과 색상은 남지 않습니다.
-- 상위 Task를 삭제하면 하위 Task의 `parentTaskId`는 `NULL`이 됩니다.
-- `pomodoros`가 참조하는 `todoist_tasks`와 `timer_sessions`에는 `onDelete`를 지정하지 않아 PostgreSQL 기본값인 `NO ACTION`이 적용됩니다. 해당 Task나 세션을 가리키는 집중 시간 기록이 남아 있으면 그 Task나 세션만 따로 삭제할 수 없습니다. 카테고리를 `NULL`로 만드는 것과는 다른 동작입니다.
-- 사용자를 삭제할 때는 `pomodoros`도 함께 삭제되고 `NO ACTION`은 문장 단위로 검사되므로, 위 제약에 걸리지 않습니다.
+| 삭제 대상 | 연결된 데이터의 처리 |
+| --- | --- |
+| 사용자 | 카테고리·사이클 설정·Task·세션·pomodoro는 CASCADE 삭제. 사이클 기록과 pause도 부모를 따라 삭제 |
+| 사용자 또는 세션 | `session_segments.userId` 또는 `timerSessionId`는 SET NULL. 구간 행과 스냅샷 보존 |
+| 세션 | `session_pauses`는 CASCADE 삭제, `pomodoros.timerSessionId`는 SET NULL |
+| 카테고리 | `pomodoros.categoryId`, `session_segments.categoryId`는 SET NULL |
+| Task | `session_segments.todoistTaskId`, 하위 Task의 `parentTaskId`는 SET NULL |
+
+`pomodoros.todoistTaskId`에는 `onDelete`를 지정하지 않아 기본값 `NO ACTION`이 적용됩니다. 참조하는 pomodoro가 남아 있으면 그 Task만 삭제할 수 없습니다. 사용자 삭제 시에는 해당 사용자의 pomodoro도 함께 삭제됩니다.
+
+카테고리가 삭제되면 pomodoro에는 기존 이름·색상이 남지 않습니다. 반면 segment에는 `categoryName`이 남으며 색상 스냅샷 컬럼은 없습니다. Task 제목은 segment의 `taskContent`에 남습니다.
 
 ## 제약조건과 인덱스
 
@@ -226,6 +318,16 @@ uniqueIndex('categories_user_id_is_current_unique')
 
 정렬 방향 `DESC`는 유일성에는 영향을 주지 않습니다. 사용자별 기록을 최신순으로 조회하는 데 이 인덱스를 그대로 쓰기 위한 것입니다.
 
+### 세션·pause·segment의 제약조건 {#session-constraints}
+
+- `timer_sessions`: 종료 ≥ 시작, 목표 시간·최종 목표 시간·카운트다운·총 pause 시간 ≥ 0입니다. `editedDuration` 자체는 음수가 될 수 있습니다. 목표 관련 컬럼이 NULL이면 해당 CHECK는 미상 값을 허용합니다.
+- `timer_sessions`: `isEarlyEnded OR earlyEndReason IS NULL`로 조기 종료가 아닌 행의 사유를 금지합니다.
+- `session_pauses`: 종료 ≥ 시작이고 `(timerSessionId, startTime)`이 유일합니다. 길이 0인 pause도 스키마상 허용됩니다. `duration = endTime - startTime`은 생성 컬럼입니다.
+- `session_segments`: `duration >= 0`이고 `(timerSessionId, sequenceOrder)`가 유일합니다. `timerSessionId`가 NULL인 행에는 PostgreSQL 기본 UNIQUE의 NULL 처리 규칙에 따라 같은 순서 값이 있을 수 있습니다.
+- `session_segments`: `(timerSessionId, startTime)`, `(userId, startTime)`에 조회용 일반 인덱스가 있습니다.
+
+구간 간 겹침, 세션 범위 안에 있는지, `totalPauseLength`와 자식 합이 같은지는 위 행 단위 CHECK만으로 보장되지 않습니다. 생성 컬럼이 자동 계산하는 것은 해당 행의 종료 시각 또는 길이입니다.
+
 ## 조회와 트랜잭션
 
 ### 집중 시간 조회
@@ -233,14 +335,18 @@ uniqueIndex('categories_user_id_is_current_unique')
 - 통계용 Pomodoro 기록을 조회할 때는 연결된 카테고리의 이름, 색상, 통계 표시 여부도 함께 가져옵니다.
 - 오늘의 총 집중 시간은 사용자와 날짜로 기록을 찾고, `SUM(duration)`으로 합산합니다. 기록이 없으면 0을 반환합니다.
 
-### 집중 시간 저장
+### 세션 완료 시 저장 {#saving-completed-sessions}
 
-`PomodorosService`에서는 다음 두 작업을 하나의 트랜잭션 안에서 처리합니다.
+현재 `TodayRecordsService.createTodayRecord`는 `POST /today-records` 요청을 다음 순서로 하나의 PostgreSQL 트랜잭션에서 처리합니다.
 
-1. `pomodoros`에 집중 시간 기록을 저장합니다.
-2. 요청에 포함된 Task별 집중 시간을 `todoist_tasks.totalFocusDuration`에 더합니다.
+1. `timer_sessions`에 세션을 저장하고 ID를 받습니다.
+2. 닫힌 pause를 `session_pauses`에 저장합니다.
+3. 요청의 `segments` 배열을 `session_segments`에 저장합니다. 집중·휴식 세션 모두 전달하며, `sequenceOrder`는 배열 순서입니다.
+4. 집중 세션이면 요청의 `pomodoroRecordArr`를 `pomodoros`에 저장하고 Task별 누적 집중 시간을 갱신합니다.
 
-둘 중 하나가 실패하면 트랜잭션 안의 변경을 취소합니다. 예를 들어 누적 시간을 갱신할 Task를 찾지 못하면, 앞에서 저장한 Pomodoro 기록도 반영되지 않습니다.
+세션 FK는 위에서 생성한 ID를 사용합니다. 트랜잭션 안에서 오류를 던지면 함께 롤백됩니다. 카테고리·Task FK를 찾지 못하는 구간은 NULL로 저장하며, 연동 해제 등으로 누적 갱신 대상 Task가 없어진 경우에는 그 갱신을 건너뜁니다.
+
+새 segment는 서버가 pomodoro에서 역산하지 않습니다. 클라이언트가 변경 이력으로 만든 배열을 저장하며, [과거 기록의 백필](./timeline-backfill/session-segments-backfill.mdx)만 저장된 pomodoro와 pause를 입력으로 사용합니다.
 
 ## MongoDB 문서를 PostgreSQL 테이블로 변환한 기준
 
@@ -248,6 +354,60 @@ uniqueIndex('categories_user_id_is_current_unique')
 
 정규화와 참조 무결성을 기본으로 고려하되, 중첩된 값을 모두 같은 방식으로 변환하지는 않았습니다. 각 데이터의 역할, 생명주기, 조회·갱신 단위를 살펴보고 **개별 컬럼으로 평탄화할지, JSONB로 유지할지, 별도 테이블의 행으로 분리할지** 결정했습니다.
 
+
+<Collapse title={"MongoDB User 스키마 vs PostgreSQL users 테이블 정의 비교"}>
+
+```typescript
+// 1. 기존 MongoDB Mongoose User 스키마 (nest-server/src/schemas/user.schema.ts)
+@Schema()
+export class User {
+  @Prop({ unique: true })
+  firebaseUid: string;
+
+  @Prop({ unique: true })
+  userEmail: string;
+
+  @Prop()
+  userNickname: string;
+
+  // 1:N 참조는 부모 문서 내 ObjectId 배열로 보관
+  @Prop({ type: [{ type: mongoose.Schema.Types.ObjectId, ref: 'CycleSetting' }] })
+  cycleSettings: CycleSetting[];
+
+  @Prop({ type: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Category' }] })
+  categories: Category[];
+
+  // 진행 중 타이머 상태는 중첩 객체(Raw)로 보관
+  @Prop(raw({
+    duration: { type: Number },
+    pause: {
+      totalLength: { type: Number },
+      record: [{ start: Number, end: Number }]
+    },
+    running: { type: Boolean },
+    startTime: { type: Number }
+  }))
+  timersStates: TimersStates;
+}
+```
+
+```typescript
+// 2. 이관된 PostgreSQL Drizzle users 테이블 (nest-server/src/postgresql/schema.ts)
+export const users = pgTable('users', {
+  id: uuid().defaultRandom().primaryKey(),
+  firebaseUid: varchar({ length: 255 }).notNull().unique(),
+  userEmail: varchar({ length: 255 }).notNull().unique(),
+  userNickname: varchar({ length: 255 }),
+
+  // 1:N 참조 배열은 자식 테이블(cycle_settings, categories)의 userId 외래 키로 분리하여 정규화
+  // 진행 중인 타이머 상태는 UPDATE 빈도가 높으므로 단일 JSONB 컬럼으로 유지
+  timersStates: jsonb().$type<TimersStates>().notNull(),
+  taskChangeInfoArray: jsonb().$type<TaskChangeInfo[]>().default([]).notNull(),
+  categoryChangeInfoArray: jsonb().$type<CategoryChangeInfo[]>().default([]).notNull(),
+});
+```
+
+</Collapse>
 
 <!--- Questions
   - subdocument이라고 표현하는게 맞는지? MongoDB에서 subdocument과 그냥 field 자체가 json형태를 띄는 것과는 다른것으로 알고있는데, 잘못 알고있는것인지, 아니면 그냥 엄밀하게 subdocument는 아니지만 그렇게 표현해도 괜찮은것인지 궁금.
@@ -323,9 +483,9 @@ export const TodayRecordSchema = SchemaFactory.createForClass(TodayRecord);
 ```
 </Collapse>
 
-오전 9시부터 9시 30분까지 진행한 세션에 9시 10분부터 9시 15분까지의 일시정지가 있다고 가정합니다. 현재 서버는 세션의 시작·종료 시각과 `pause`를 함께 가져오고, Timeline은 이 정보로 세션 중 어느 구간이 일시정지였는지 표시합니다. 이를 위해 일시정지 구간마다 별도 행을 만들 필요는 없다고 판단하여, `timer_sessions`의 `pause` 컬럼에 JSONB로 저장했습니다.
+오전 9시부터 9시 30분까지 진행한 세션에 9시 10분부터 9시 15분까지의 일시정지가 있다고 가정합니다. 최초 이관 당시 서버는 세션의 시작·종료 시각과 `pause`를 함께 가져왔고, Timeline은 이 정보로 일시정지를 표시했습니다. 당시에는 구간마다 별도 행을 만들 필요가 없다고 판단하여 `timer_sessions.pause`의 JSONB로 저장했습니다.
 
-반면 “지난달 모든 세션에서 5분 이상 일시정지한 구간만 찾아보자”처럼 일시정지 구간 자체를 조회·분석하는 요구가 중요해지면, `session_pauses` 테이블에 구간별 행을 저장하는 방식을 검토할 수 있습니다. JSONB로도 조회·분석은 가능하지만, 이런 요구가 반복될 때 각 구간을 독립된 행으로 다루는 편이 적합한지 다시 판단하는 것입니다.
+이후 일시정지 구간 자체의 독립적인 시계열 분석과 비정형 사유(`reason`) 보관, 그리고 향후 LLM 기반 집중 패턴 분석 기능(`feature/ai-report`)과의 연계를 위해 `session_pauses`로 분리했습니다. 위 JSONB 선택은 최초 이관 시점의 판단입니다. 현재는 닫힌 일시정지를 독립된 행으로 저장하고, 작업 변경까지 포함한 상세 타임라인은 `session_segments`로 보관합니다.
 
 함께 조회한다는 사실만으로 JSONB를 선택하는 것은 아닙니다. 아래의 `cycleStat`은 현재 사이클 설정과 함께 조회하지만, 완료 기록을 독립적으로 보관·분석하려는 의도로 별도 테이블로 분리했습니다.
 
@@ -402,7 +562,7 @@ if (stats.length > 0) {
 | `currentCycleInfo` | `users`의 JSONB | A | 사이클 진행과 이행률 계산에 사용하는 현재 상태 |
 | `goals` | `users`의 JSONB | B | 주간·요일별 현재 목표를 하나의 설정 묶음으로 보관 |
 | `CycleSetting.cycleStat` | `cycle_records`의 여러 행 | A·B | 설정과 구분하여 조회·보관할 완료된 사이클 기록 |
-| 세션의 `pause` | `timer_sessions`의 JSONB | B | 세션과 함께 읽어 Timeline에 표시하는 일시정지 구간 |
+| 세션의 `pause` | 최초 이관에서는 JSONB, 현재는 `session_pauses` | B | 완료된 일시정지를 독립된 구간으로 조회·관리하도록 분리 |
 
 <Collapse title={"기준 적용 설명"}>
 
@@ -430,13 +590,13 @@ if (stats.length > 0) {
 
 `currentCycleInfo`도 JSONB로 유지했지만 초기화 시점은 다릅니다. 개별 집중 세션마다 전체를 초기화하지 않고, 설정한 사이클 반복의 마지막 집중 세션이 끝나면 `cycleStartTimestamp`와 `veryFirstCycleStartTimestamp`를 0으로, 시간 관련 값들을 선택한 설정의 목표값으로 되돌립니다. 이 값은 현재 실행을 위한 상태이고, 완료된 수행 결과는 `cycleStat`으로 구분합니다.
 
-#### 목표 설정과 완료된 세션의 일시정지 배열도 JSONB로 유지 — 기준 B
+#### 목표 설정과 완료된 세션의 일시정지 배열도 JSONB로 유지 — 기준 B {#goals-and-completed-pauses}
 
 `goals`에는 주간 목표와 요일별 목표 7개가 들어 있습니다. 현재 서버는 전달받은 목표 객체로 `users.goals`를 갱신합니다. 이번 이관에서는 이 저장 방식을 JSONB로 유지했습니다. 앞의 자동 시작 옵션처럼 필드별로 평탄화하는 선택도 가능하며, 기존 대화 기록만으로는 JSONB를 택한 추가 근거가 명확하지 않습니다.
 
 요일별 목표를 각각 조회·관리하는 요구가 커지면 요일당 한 행을 갖는 목표 테이블을 검토할 수 있습니다. “지난달에는 목표를 얼마로 설정했는가?”처럼 변경 이력을 보려면 별도의 작업이 필요합니다. 현재 목표를 덮어쓰는 대신, 변경 시점과 당시 목표를 추가 기록으로 저장해야 합니다.
 
-완료된 세션의 `pause.record`는 진행 중인 타이머 상태와 달리 세션 기록에 남는 배열입니다. 현재는 해당 세션의 Timeline을 그릴 때 사용하는 구간 목록이므로 `timer_sessions.pause`의 JSONB 안에 유지했습니다. 앞서 기준 B에서 본 `session_pauses` 분리는 여기에도 그대로 적용되는 후보입니다.
+완료된 세션의 `pause.record`는 진행 중인 타이머 상태와 달리 세션 기록에 남는 배열입니다. MongoDB에서 옮길 때는 해당 세션의 Timeline을 그릴 때 세션과 함께 읽으므로 `timer_sessions.pause`의 JSONB 안에 두었습니다. 그 배열을 `session_pauses` 행으로 복사한 작업은 [완료된 세션의 일시정지를 행으로 옮긴 방법](./timeline-backfill/session-pause-backfill.mdx)에 적었습니다.
 
 #### 완료된 기록은 별도 행으로 분리 — 기준 A·B
 

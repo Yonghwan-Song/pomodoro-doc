@@ -6,7 +6,7 @@ erDiagram
         varchar user_email UK
         varchar user_nickname "nullable"
         text todoist_access_token "nullable"
-        boolean is_todoist_integration_enabled
+        boolean is_todoist_integration_enabled "nullable"
         text current_task_id
         varchar color_for_uncategorized
         boolean is_uncategorized_on_stat
@@ -79,19 +79,49 @@ erDiagram
         bigint start_time
         bigint end_time
         bigint time_counted_down
-        jsonb pause
+        bigint planned_duration "nullable, ms"
+        bigint edited_duration "nullable, ms, default 0"
+        boolean is_early_ended
+        text early_end_reason "nullable"
+        bigint total_pause_length "ms"
+    }
+
+    SESSION_PAUSES {
+        uuid id PK
+        uuid timer_session_id FK "cascade"
+        bigint start_time "epoch ms"
+        bigint end_time "epoch ms"
+        bigint duration "generated: end_time - start_time"
+        text reason "nullable"
+    }
+
+    SESSION_SEGMENTS {
+        uuid id PK
+        uuid user_id FK "nullable, set null"
+        uuid timer_session_id FK "nullable, set null"
+        integer sequence_order
+        session_segment_type type "focus or pause"
+        bigint start_time "epoch ms"
+        bigint duration "ms, nonnegative"
+        bigint end_time "generated: start_time + duration"
+        varchar category_name "nullable, snapshot"
+        uuid category_id FK "nullable, set null"
+        text task_id "nullable, Todoist string ID"
+        text task_content "nullable, title snapshot"
+        uuid todoist_task_id FK "nullable, set null"
+        text reason "nullable"
     }
 
     POMODOROS {
         uuid id PK
         uuid user_id FK
-        integer duration
+        integer duration "minutes"
         bigint start_time
         text date
         boolean is_dummy
-        uuid category_id FK "nullable"
-        uuid todoist_task_id FK "nullable"
-        uuid timer_session_id FK "nullable"
+        uuid category_id FK "nullable, set null"
+        uuid todoist_task_id FK "nullable, no action"
+        uuid timer_session_id FK "nullable, set null"
     }
 
     USERS ||--o{ CATEGORIES : owns
@@ -106,3 +136,9 @@ erDiagram
     TODOIST_TASKS o|--o{ POMODOROS : associated_with
     CATEGORIES o|--o{ POMODOROS : categorizes
     TIMER_SESSIONS o|--o{ POMODOROS : contains
+
+    TIMER_SESSIONS ||--o{ SESSION_PAUSES : has
+    USERS o|--o{ SESSION_SEGMENTS : owns
+    TIMER_SESSIONS o|--o{ SESSION_SEGMENTS : contains
+    CATEGORIES o|--o{ SESSION_SEGMENTS : categorizes
+    TODOIST_TASKS o|--o{ SESSION_SEGMENTS : associated_with

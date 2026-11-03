@@ -1,8 +1,9 @@
 ---
 sidebar_position: 9
 ---
+
 import { Highlight } from "../src/components/Highlight";
-import Collapse from "../src/components/Collapse"
+import Collapse from "../src/components/Collapse";
 
 # Miscellaneous
 
@@ -47,10 +48,8 @@ import Collapse from "../src/components/Collapse"
 
 **결론적으로,** `IndexedDB`는 브라우저의 핵심인 **브라우저 프로세스**가 중앙에서 관리하는 디스크 기반 저장소입니다. 모든 컨텍스트(탭, 서비스 워커)는 오직 **비동기 IPC**라는 표준화된 통신 채널을 통해서만 접근을 "요청"하고 "응답"받기 때문에, 여러 프로세스 간에 데이터를 안전하게 공유할 수 있습니다.
 
-
-
-
 ---
+
 ## Service Worker의 수명 주기와 Web API (setInterval)
 
 ### 1. 문제의 배경: 역설(Paradox)
@@ -76,6 +75,7 @@ Task Queue(이벤트 큐)는 브라우저 전체에 하나만 존재하는 "공�
 > **참고: Service Worker는 어디에서 실행되는가?**
 >
 > Chromium 기준으로 Service Worker는 반드시 독립적인 프로세스에서 실행되는 것이 아닙니다.
+>
 > - **독립 프로세스**: Site Isolation 정책 등에 의해 별도의 Renderer Process를 할당받아 실행될 수 있습니다.
 > - **기존 Renderer Process 내 별도 스레드** : 같은 origin의 Renderer Process 안에서 Worker 스레드로 실행될 수도 있습니다.
 >
@@ -90,7 +90,7 @@ Web API에게 작업을 위임한다는 것은 "그냥 실행해"가 아니라, 
 
 1. **[SW 실행 컨텍스트]** `setInterval(myCallback, 1000)`을 호출합니다.
    - 이것은 브라우저의 타이머 관리 시스템에게 보내는 요청입니다.
-   - 요청 내용: *"1초마다 `myCallback`을 SW 전용 Task Queue에 배달해주세요."*
+   - 요청 내용: _"1초마다 `myCallback`을 SW 전용 Task Queue에 배달해주세요."_
 
 2. **[브라우저 타이머 시스템]** "알겠습니다." (타이머 시작)
 
@@ -199,3 +199,33 @@ useEffect(() => {
 ### 이 과정에서 AI를 활용한 방식
 
 `about:webrtc`가 출력하는 로그는 mediasoup나 WebRTC 튜토리얼 어디에도 정리돼 있지 않은, Firefox 내부 구현 세부사항에 가까운 문구였습니다. 이 로그를 AI에게 그대로 제시하고 "송신자는 되는데 수신자는 안 된다"는 비대칭적 증상을 함께 제공한 것이 결정적이었습니다 — 로그 문구 자체보다, 두 경로의 유일한 차이(`getUserMedia` 호출 여부)를 대조시켜 가설을 검증하는 방식으로 원인을 좁혀나갔습니다. 이후 이 가설(fingerprinting 방지 정책)이 실제 Firefox의 문서화된 동작과 일치하는지 교차 확인해 결론을 확정했습니다. AI가 만들어준 코드를 그대로 받아쓴 것이 아니라, 낯선 브라우저 내부 로그를 해석하고 원인 가설을 좁혀나가는 데 AI를 페어 프로그래밍 파트너로 활용한 사례입니다.
+
+
+
+<!-- 찾으시던 문서는 문서 사이트(`pomodoro-doc`)의 [miscellaneous.mdx](file:///home/yhs/repos/workspace_pomodoro_and_documentation/pomodoro-doc/docs/miscellaneous.mdx#L137-L202)입니다. -->
+<!---->
+<!-- 해당 문서의 **"WebRTC 로컬 연결 장애 트러블슈팅: Host Candidate와 프라이버시 정책"** 섹션과 **"이 과정에서 AI를 활용한 방식"** 소단락이 작성하신 자기소개서 내용과 정확히 일치합니다. -->
+<!---->
+<!-- --- -->
+<!---->
+<!-- ### 1. 해당 문서 위치 및 내용 -->
+<!---->
+<!-- - **파일 경로**: [pomodoro-doc/docs/miscellaneous.mdx](file:///home/yhs/repos/workspace_pomodoro_and_documentation/pomodoro-doc/docs/miscellaneous.mdx#L137-L202) -->
+<!-- - **주요 내용**: -->
+<!--   - **문제 상황**: 로컬(LAN) 환경에서 Firefox 브라우저 사용 시 Producer(송신자)는 정상이나 Consumer(수신자)는 연결이 멈추는 비대칭 현상, `about:webrtc` 로그(`Ignoring addr from interface other than lo` 등) -->
+<!--   - **원인 분석**: -->
+<!--     1. 로컬 IP 숨김 및 Host Candidate 차단 (Fingerprinting 방지 정책) -->
+<!--     2. 예외 조건 (`getUserMedia` 권한 획득 여부) -->
+<!--     3. 수신자(Consumer)는 `getUserMedia`를 호출하지 않아 권한 부재로 Host Candidate 차단 -->
+<!--   - **해결 방식**: 수신자 측에서도 더미(Dummy) 미디어 권한을 요청하고 트랙을 연결 동안 유지 -->
+<!--   - **AI 활용 방식**: 단편적인 내부 로그와 Producer/Consumer 간 유일한 차이점(`getUserMedia` 유무)을 AI에게 제공해 가설을 좁히고 교차 검증한 페어 프로그래밍 과정 기록 -->
+<!---->
+<!-- --- -->
+<!---->
+<!-- ### 2. 프로젝트 내 관련 문서 모음 -->
+<!---->
+<!-- * [miscellaneous.mdx](file:///home/yhs/repos/workspace_pomodoro_and_documentation/pomodoro-doc/docs/miscellaneous.mdx#L137-L202): AI 협업 관점 및 문제 해결 과정이 정리된 공식 국문 문서화 -->
+<!-- * [firefox-ice-candidate-issue.md](file:///home/yhs/repos/workspace_pomodoro_and_documentation/pomodoro-ai-report/docs/webrtc-poc/firefox-ice-candidate-issue.md): 기술적 원인(Fingerprinting, NAT vs WebRTC, Dummy stream 구현)에 집중한 상세 영문 트러블슈팅 문서 -->
+<!-- * [troubleshooting-ice-connection.md](file:///home/yhs/repos/workspace_pomodoro_and_documentation/pomodoro-ai-report/docs/webrtc-poc/troubleshooting-ice-connection.md): WebRTC ICE 전반적인 연결 트러블슈팅 정리 -->
+<!-- * [2025-12-08.md (Gemini 대화 백업)](file:///home/yhs/repos/workspace_pomodoro_and_documentation/pomodoro-ai-report/docs/webrtc-poc/gemini-chat-backup/2025-12-08.md#L29-L45): 개발 초기 Firefox `about:webrtc`와 Chrome 내부 로그 특성을 분석하고 테스트했던 대화 기록 -->
+```

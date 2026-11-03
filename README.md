@@ -43,8 +43,11 @@ Pomodoro 기법을 기반으로 집중·휴식 시간을 관리하고, 통계·�
 | [introduction.md](docs/introduction.md) | 프로젝트 개요, 기술 스택, 기능 요약, C4 아키텍처, 화면 | 프로젝트의 전체 맥락을 먼저 파악할 때 |
 | [features.mdx](docs/features.mdx) | 사용자 기능, 구현 설명, 데모 영상 | 제품이 실제로 무엇을 할 수 있는지 볼 때 |
 | [problem-solving.mdx](docs/problem-solving.mdx) | 핵심 문제, 해결 과정, 제약과 검증 | 기술적 문제 해결 역량을 검토할 때 |
-| [architectue-and-design.mdx](docs/architectue-and-design.mdx) | MongoDB 데이터 모델과 ERD | 데이터 구조를 확인할 때 |
-| [overview-of-pomodoro-session-data-flow.mdx](docs/overview-of-pomodoro-session-data-flow.mdx) | MongoDB부터 통계 UI까지의 데이터 흐름 | 데이터가 서버와 클라이언트에서 어떻게 변환되는지 볼 때 |
+| [database/index.mdx](docs/database/index.mdx) | PostgreSQL 스키마, Drizzle ORM, MongoDB 이관 기준, ERD | 데이터베이스 설계 및 구조를 확인할 때 |
+| [session-pause-backfill.mdx](docs/database/timeline-backfill/session-pause-backfill.mdx) | [FE 맥락 보존 1단계] `pause` JSON을 `session_pauses` 행으로 정규화한 절차 | 완료된 일시정지를 어떻게 독립 행으로 분리했는지 볼 때 |
+| [session-segments-backfill.mdx](docs/database/timeline-backfill/session-segments-backfill.mdx) | [FE 맥락 보존 2단계] `pomodoros`와 `session_pauses`로부터 `session_segments` 역산 복원 | 과거 분 단위 기록을 밀리초 세그먼트로 복원한 로직을 볼 때 |
+| [database-safety-guidelines.mdx](docs/database/database-safety-guidelines.mdx) | DB 대량 변경 및 마이그레이션 작업 시 지켜야 할 절대 안전 수칙 | 데이터베이스 안정성 및 트랜잭션 검증 원칙을 볼 때 |
+| [overview-of-pomodoro-session-data-flow.mdx](docs/overview-of-pomodoro-session-data-flow.mdx) | 데이터베이스부터 통계 UI까지의 데이터 흐름 | 데이터가 서버와 클라이언트에서 어떻게 변환되는지 볼 때 |
 | [description.mdx](docs/description.mdx) | TypeScript Generic, Conditional Type, Index Signature 활용 | 타입 설계의 세부 구현을 볼 때 |
 | [questions.mdx](docs/questions.mdx) | 핵심 설계에 대한 비판적 질문, 한계, 개선점 | 의사결정의 근거와 회고를 더 살필 때 |
 | [miscellaneous.mdx](docs/miscellaneous.mdx) | IndexedDB, Service Worker, 이벤트 루프 관련 보충 학습 | 문제 해결의 브라우저 동작 원리를 보충할 때 |
@@ -84,4 +87,4 @@ Papersaurus는 npm 설치를 지원하는 `@axinom/docusaurus-plugin-papersaurus
 변경하지 않습니다. PDF 전용 스타일은 `static/pdf-assets/print.css`에 있습니다.
 
 포함 문서와 순서는 `docusaurus.config.ts`의 `includeDocs`에서 관리합니다.
-현재 값은 `["introduction", "database", "problem-solving"]`입니다.
+현재 값은 `["introduction", "database/database", "problem-solving"]`입니다.

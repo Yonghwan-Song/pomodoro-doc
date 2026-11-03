@@ -1,0 +1,111 @@
+---
+sidebar_label: DB 작업 안전 수칙
+sidebar_position: 3
+description: AI 에이전트 및 마이그레이션 작업 시 DB 사고를 방지하기 위한 절대 안전 원칙과 백업 절차
+---
+
+import Collapse from "../../src/components/Collapse";
+
+# 데이터베이스 작업 및 마이그레이션 절대 안전 수칙
+
+이 문서는 AI 어시스턴트(에이전트) 또는 개발자가 데이터베이스를 대상으로 대량 변경, 삭제, 역복원(Backfill), 마이그레이션 작업을 수행할 때 **데이터 유실 및 잘못된 커밋 사고를 원천 방지하기 위해 반드시 지켜야 할 안전 프로토콜**이다.
+
+---
+
+## 1. AI 및 작업자가 반드시 지켜야 할 3대 절대 원칙 (The Golden Rules)
+
+### 원칙 1: 절대 '선 커밋(Blind Commit)'하지 않는다
+- 대량 `INSERT`, `UPDATE`, `DELETE`가 포함된 작업은 결과를 눈으로 검증하기 전에 영구 반영(`COMMIT`)해서는 안 된다.
+- 스크립트 작성 시 **반드시 `--dry-run` 모드를 기본값**으로 두고, 실제 쓰기 전 영향받는 행 수와 샘플 데이터를 출력해 사용자 승인을 받아야 한다.
+
+### 원칙 2: 작업 전 스냅샷/백업 격리가 필수다
+- 본 테이블을 직접 수정/삭제하기 전, 반드시 되돌릴 수 있는 스냅샷(Neon 브랜치 또는 백업 테이블)을 확보한다.
+
+### 원칙 3: 모호한 비즈니스 로직(Gap, 손실 보정 등)을 임의로 단정하지 않는다
+- 단위 불일치(분 vs 밀리초), 손실 구간(Loss/Gap), 외래키 누락 데이터에 대해 "당연히 이럴 것이다"라고 자의적으로 해석하여 연속성을 강제 부여하지 않는다.
+- 데이터 왜곡 가능성이 있는 가정은 반드시 시각화/수식으로 사용자에게 확인받은 후 진행한다.
+
+---
+
+## 2. 안전한 백업 및 스냅샷 기법
+
+### A. Neon Serverless PostgreSQL 브랜칭 (가장 강력)
+Neon 콘솔 또는 CLI를 사용하여 현재 데이터베이스 상태를 1초 만에 그대로 복제하는 스냅샷 브랜치를 만든다.
+
+```bash
+# 1. 작업 전 백업 브랜치 생성 (main 브랜치 기준)
+neon branches create --name backup-before-migration
+
+# 2. 만약 사고가 발생했을 경우:
+# 콘솔에서 해당 브랜치를 main으로 승격(promote)하거나 데이터를 역복구한다.
+```
+
+### B. CTAS (Create Table As Select) 테이블 레벨 백업
+특정 테이블의 데이터를 대량 조작하거나 삭제해야 할 경우, 쿼리 한 줄로 즉시 백업본을 만든다.
+
+```sql
+-- 작업 직전 백업 테이블 생성 (1초 소요)
+CREATE TABLE session_segments_backup_20261015 AS 
+SELECT * FROM session_segments;
+
+-- 롤백이 필요할 때 복구:
+-- TRUNCATE session_segments;
+-- INSERT INTO session_segments SELECT * FROM session_segments_backup_20261015;
+
+-- 완전히 안전함이 검증된 후 백업 테이블 제거:
+-- DROP TABLE session_segments_backup_20261015;
+```
+
+### C. 로컬 pg_dump 백업
+로컬 파일 형태로 해당 테이블의 DDL과 데이터를 안전하게 내려받는다.
+
+```bash
+# 특정 테이블만 백업 파일로 추출
+pg_dump "$NEON_POSTGRESQL_URL" -t session_segments > session_segments_backup.sql
+```
+
+---
+
+## 3. 대량 데이터 수정/삭제 시 트랜잭션 안전 템플릿
+
+위험한 쿼리를 실행할 때는 한 번에 스크립트로 끝내지 않고, **검증 -> 승인 -> 반영**의 3단계를 거친다.
+
+<Collapse title={"대량 변경 4단계 트랜잭션 안전 템플릿 (BEGIN ~ 검증 ~ COMMIT/ROLLBACK)"}>
+
+```sql
+-- [1단계] 트랜잭션 시작
+BEGIN;
+
+-- [2단계] 작업 수행 (예: 잘못된 백필 데이터 삭제)
+DELETE FROM session_segments
+WHERE timer_session_id NOT IN (
+  '310e1da0-886f-45c5-acdc-2d606d1ad49c',
+  '324a2733-da41-4cc6-80d1-1921ac083aca',
+  '405a2895-7032-44b8-8134-470bb570d855',
+  '413c2991-70d0-4576-85ae-47dc7b493435',
+  '67cddc05-dfa4-49be-a60c-4bbc4f61ef03',
+  '8bbd2a88-82f6-41fd-8faf-6cbaaf682949',
+  'de6dbeca-cdb3-4078-8709-560bd8cf5ab7'
+);
+
+-- [3단계] 검증 쿼리 수행
+-- 남은 행의 수가 정확히 목표치(예: 17개)인지 눈으로 확인
+SELECT count(*) FROM session_segments;
+
+-- [4단계] 불일치 시 즉시 취소, 일치 시 영구 반영
+-- 숫자가 이상하면 즉시: ROLLBACK;
+-- 완벽하게 일치하면: COMMIT;
+```
+
+</Collapse>
+
+---
+
+## 4. AI 에이전트에 지시할 때의 행동 프롬프트 (Tips)
+
+AI 어시스턴트에게 DB 관련 작업을 시킬 때는 아래와 같은 제약 조건을 명시하면 실수를 차단할 수 있다:
+
+> **[지시 가이드 예시]**
+> 1. DB에 변경을 가하기 전에, 조회(SELECT) 쿼리로 영향받을 대상 건수와 분포를 먼저 출력해 줘.
+> 2. 실제 INSERT/UPDATE/DELETE를 수행하는 스크립트를 바로 돌리지 말고, dry-run 모드로 시뮬레이션 결과만 먼저 보여줘.
+> 3. 내 최종 확인과 승인이 있기 전에는 절대로 COMMIT을 날리지 마.
